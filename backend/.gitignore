@@ -1,0 +1,12 @@
+# Environment variables (keep API keys secret)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
