@@ -1,0 +1,212 @@
+.upload-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+  animation: fade-up 0.5s ease both;
+
+  &__glow {
+    position: absolute;
+    top: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 200px;
+    background: radial-gradient(ellipse, rgba(0, 240, 255, 0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.upload-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.upload-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.4));
+}
+
+.upload-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.4rem;
+}
+
+.upload-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Drop zone */
+.drop-zone {
+  position: relative;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.25s, background 0.25s;
+  background: var(--bg-input);
+  margin-bottom: 1.25rem;
+
+  &:hover:not(.drop-zone--busy) {
+    border-color: var(--border-hover);
+    background: var(--cyan-dim);
+  }
+
+  &--active {
+    border-color: var(--cyan);
+    border-style: solid;
+    background: var(--cyan-dim);
+  }
+
+  &--busy {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &__input { display: none; }
+
+  &__label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  &__icon {
+    font-size: 2rem;
+    color: var(--cyan);
+    line-height: 1;
+  }
+
+  &__check {
+    color: var(--green);
+    filter: drop-shadow(0 0 6px var(--green));
+  }
+
+  &__text {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+  }
+
+  &__filename {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--cyan);
+    word-break: break-all;
+  }
+
+  &__hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+}
+
+/* Button */
+.upload-btn {
+  position: relative;
+  width: 100%;
+  padding: 0.85rem 1.5rem;
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(168, 85, 247, 0.15));
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  color: var(--cyan);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.25s;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.08), rgba(168, 85, 247, 0.08));
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  &:hover:not(:disabled)::before { opacity: 1; }
+  &:hover:not(:disabled) { box-shadow: var(--glow-cyan); }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: var(--border);
+    color: var(--text-muted);
+  }
+}
+
+.upload-btn__ring {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 240, 255, 0.3);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Messages */
+.upload-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--red);
+  background: rgba(255, 77, 109, 0.08);
+  border: 1px solid rgba(255, 77, 109, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.85rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+
+  &__icon { font-size: 1rem; }
+}
+
+.upload-success {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  color: var(--green);
+  font-size: 0.875rem;
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}

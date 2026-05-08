@@ -1,0 +1,17 @@
+<div class="app-shell">
+  <header class="app-header">
+    <div class="app-logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">Angel<span class="logo-ai">AI</span></span>
+    </div>
+    <p class="app-tagline">Intelligent document analysis powered by Gemini</p>
+  </header>
+
+  <main class="app-main">
+    @if (!documentId) {
+      <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
+    } @else {
+      <app-chat [documentId]="documentId" [sessionId]="sessionId" />
+    }
+  </main>
+</div>

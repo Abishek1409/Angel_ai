@@ -1,0 +1,58 @@
+<div class="upload-card">
+  <div class="upload-card__glow"></div>
+
+  <div class="upload-header">
+    <div class="upload-icon">📄</div>
+    <h2 class="upload-title">Upload Your Document</h2>
+    <p class="upload-subtitle">Drop a PDF or TXT file and start asking questions instantly</p>
+  </div>
+
+  <div
+    class="drop-zone"
+    [class.drop-zone--active]="selectedFile"
+    [class.drop-zone--busy]="isBusy"
+  >
+    <label for="file-input" class="drop-zone__label">
+      <div class="drop-zone__icon">
+        <span *ngIf="!selectedFile">⬆</span>
+        <span *ngIf="selectedFile" class="drop-zone__check">✓</span>
+      </div>
+      <span class="drop-zone__text" *ngIf="!selectedFile">
+        Click to browse or drag &amp; drop
+      </span>
+      <span class="drop-zone__filename" *ngIf="selectedFile">
+        {{ selectedFile.name }}
+      </span>
+      <span class="drop-zone__hint">PDF or TXT · max 20 MB</span>
+    </label>
+    <input
+      id="file-input"
+      type="file"
+      accept=".pdf,.txt"
+      (change)="onFileSelected($event)"
+      [disabled]="isBusy"
+      class="drop-zone__input"
+      aria-label="Select a PDF or TXT file"
+    />
+  </div>
+
+  <p *ngIf="errorMessage" class="upload-error" role="alert">
+    <span class="upload-error__icon">⚠</span> {{ errorMessage }}
+  </p>
+
+  <button
+    class="upload-btn"
+    (click)="onSubmit()"
+    [disabled]="!selectedFile || isBusy"
+    aria-label="Upload file"
+  >
+    <span class="upload-btn__ring" *ngIf="isBusy"></span>
+    <span *ngIf="!isBusy">Analyze Document</span>
+    <span *ngIf="isBusy">{{ status === 'uploading' ? 'Uploading...' : 'Processing...' }}</span>
+  </button>
+
+  <div *ngIf="status === 'ready'" class="upload-success" role="status">
+    <span class="upload-success__dot"></span>
+    {{ uploadedFilename }} is ready — start chatting below
+  </div>
+</div>

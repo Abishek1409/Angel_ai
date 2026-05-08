@@ -1,8 +1,7 @@
-fastapi
-uvicorn[standard]
-python-dotenv
-google-generativeai
-pymupdf
-python-docx
-numpy
-python-multipart
+django>=4.2
+djangorestframework>=3.14
+django-cors-headers>=4.3
+google-generativeai>=0.5
+chromadb>=0.4
+pymupdf>=1.23
+python-dotenv>=1.0
