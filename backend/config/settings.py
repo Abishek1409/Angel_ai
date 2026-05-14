@@ -12,6 +12,9 @@ DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Allow Railway and Vercel domains automatically
+ALLOWED_HOSTS += [".railway.app", ".vercel.app"]
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
@@ -47,6 +50,11 @@ MEDIA_ROOT = BASE_DIR / "media"
 CORS_ALLOWED_ORIGINS = os.environ.get(
     "CORS_ALLOWED_ORIGINS", "http://localhost:4200"
 ).split(",")
+
+# Allow all Vercel preview deployments automatically
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
 
 # Gemini API
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
