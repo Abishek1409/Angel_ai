@@ -27,11 +27,13 @@ def query(request):
 
     try:
         doc = Document.objects.get(id=document_id)
-    except (Document.DoesNotExist, Exception):
-        return JsonResponse({"error": "Document not found or not ready."}, status=404)
+    except Document.DoesNotExist:
+        return JsonResponse({"error": f"Document {document_id} not found in database."}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": f"Database error: {e}"}, status=500)
 
     if doc.status != "ready":
-        return JsonResponse({"error": "Document not found or not ready."}, status=404)
+        return JsonResponse({"error": f"Document status is '{doc.status}'. Error: {doc.error_message}"}, status=404)
 
     try:
         chunks = retrieve_chunks(document_id, question)
