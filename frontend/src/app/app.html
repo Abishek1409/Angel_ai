@@ -11,7 +11,11 @@
     @if (!documentId) {
       <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
     } @else {
-      <app-chat [documentId]="documentId" [sessionId]="sessionId" />
+      <app-chat
+        [documentId]="documentId"
+        [sessionId]="sessionId"
+        (newDocument)="onNewDocument()"
+      />
     }
   </main>
 </div>
