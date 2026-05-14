@@ -1,9 +1,17 @@
+import os
 import threading
 import fitz  # PyMuPDF
 from google import genai
 from google.genai import types
 import chromadb
 from django.conf import settings
+
+# Persistent ChromaDB stored on disk so data survives across requests
+_CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
+
+
+def _get_chroma_client():
+    return chromadb.PersistentClient(path=_CHROMA_PATH)
 
 
 def extract_text(file_path: str, filename: str) -> str:
@@ -109,8 +117,8 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str) -> None:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
     try:
-        client = chromadb.Client()
-        collection = client.get_or_create_collection(name=f"doc_{document_id}")
+        chroma = _get_chroma_client()
+        collection = chroma.get_or_create_collection(name=f"doc_{document_id}")
         collection.upsert(
             ids=[f"chunk_{i}" for i in range(len(chunks))],
             documents=chunks,

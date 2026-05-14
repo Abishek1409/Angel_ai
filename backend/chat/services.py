@@ -1,7 +1,14 @@
+import os
 from google import genai
 from google.genai import types
 import chromadb
 from django.conf import settings
+
+_CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
+
+
+def _get_chroma_client():
+    return chromadb.PersistentClient(path=_CHROMA_PATH)
 
 
 def retrieve_chunks(document_id: str, question: str, top_k: int = 5) -> list[str]:
@@ -31,7 +38,7 @@ def retrieve_chunks(document_id: str, question: str, top_k: int = 5) -> list[str
         raise RuntimeError(f"Failed to embed question: {e}") from e
 
     try:
-        chroma_client = chromadb.Client()
+        chroma_client = _get_chroma_client()
         collection = chroma_client.get_collection(name=f"doc_{document_id}")
     except Exception:
         # Collection does not exist
