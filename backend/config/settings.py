@@ -46,10 +46,12 @@ STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# CORS
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:4200"
-).split(",")
+# CORS — strip any trailing slashes from origins
+CORS_ALLOWED_ORIGINS = [
+    o.rstrip("/")
+    for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:4200").split(",")
+    if o.strip()
+]
 
 # Allow all Vercel preview deployments automatically
 CORS_ALLOWED_ORIGIN_REGEXES = [
