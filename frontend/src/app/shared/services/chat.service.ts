@@ -7,6 +7,13 @@ export interface QueryResponse {
   sources: string[];
 }
 
+export interface HistoryMessage {
+  id: string;
+  question: string;
+  answer: string;
+  created_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private apiUrl = 'https://angelai-production.up.railway.app/api/chat';
@@ -19,5 +26,11 @@ export class ChatService {
       session_id: sessionId,
       question
     });
+  }
+
+  getHistory(documentId: string, sessionId: string): Observable<{ messages: HistoryMessage[] }> {
+    return this.http.get<{ messages: HistoryMessage[] }>(
+      `${this.apiUrl}/history/${documentId}/?session_id=${sessionId}`
+    );
   }
 }

@@ -1,72 +1,61 @@
 <div class="chat-wrap">
-  <div class="chat-panel">
-    <div class="chat-panel__glow"></div>
-
-    <!-- Header -->
-    <div class="chat-header">
-      <div class="chat-header__status">
-        <span class="status-dot"></span>
-        <span class="status-text">Document ready</span>
-      </div>
-      <span class="chat-header__label">AI Chat</span>
-      <button class="new-doc-btn" (click)="onNewDocument()" aria-label="Upload new document">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        New Document
-      </button>
-    </div>
-
-    <!-- History -->
-    <div class="chat-history" aria-live="polite" aria-label="Conversation history">
-      <div *ngIf="conversation.length === 0" class="chat-empty">
-        <div class="chat-empty__icon">💬</div>
-        <p>Ask anything about your document</p>
-        <p class="chat-empty__hint">The AI will answer using only the document's content</p>
-      </div>
-
-      <app-message
-        *ngFor="let msg of conversation"
-        [question]="msg.question"
-        [answer]="msg.answer"
-      ></app-message>
-
-      <!-- Typing indicator -->
-      <div *ngIf="isLoading" class="typing-indicator" aria-label="Loading answer">
-        <span></span><span></span><span></span>
-      </div>
-    </div>
-
-    <!-- Error -->
-    <div *ngIf="errorMessage" class="chat-error" role="alert">
-      <span>⚠</span> {{ errorMessage }}
-    </div>
-
-    <!-- Input -->
-    <form class="chat-form" (ngSubmit)="onSubmit()">
-      <input
-        class="chat-input"
-        type="text"
-        [(ngModel)]="question"
-        name="question"
-        placeholder="Ask a question about your document..."
-        [disabled]="isLoading"
-        aria-label="Question input"
-        autocomplete="off"
-      />
-      <button
-        class="chat-send"
-        type="submit"
-        [disabled]="isDisabled"
-        aria-label="Submit question"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
-    </form>
+  <!-- Toolbar -->
+  <div class="chat-toolbar">
+    <span class="chat-toolbar__title">Chat</span>
+    <button class="new-doc-btn" (click)="onNewDocument()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      New document
+    </button>
   </div>
+
+  <!-- Messages -->
+  <div class="chat-messages" aria-live="polite">
+    <div *ngIf="conversation.length === 0 && !isLoading" class="chat-empty">
+      <p>Ask a question about your document</p>
+    </div>
+
+    <app-message
+      *ngFor="let msg of conversation"
+      [question]="msg.question"
+      [answer]="msg.answer"
+    ></app-message>
+
+    <div *ngIf="isLoading" class="chat-thinking">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="errorMessage" class="chat-error" role="alert">{{ errorMessage }}</div>
+
+  <!-- Input -->
+  <form class="chat-input-wrap" (ngSubmit)="onSubmit()">
+    <textarea
+      class="chat-input"
+      [(ngModel)]="question"
+      name="question"
+      placeholder="Ask a question…"
+      [disabled]="isLoading"
+      aria-label="Question input"
+      autocomplete="off"
+      rows="1"
+      (keydown.enter)="$event.preventDefault(); onSubmit()"
+    ></textarea>
+    <button
+      class="chat-send"
+      type="submit"
+      [disabled]="isDisabled"
+      aria-label="Send"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </form>
 </div>

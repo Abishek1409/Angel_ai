@@ -7,7 +7,6 @@ import { MessageComponent } from './message/message.component';
 export interface Message {
   question: string;
   answer: string;
-  timestamp: Date;
 }
 
 @Component({
@@ -30,15 +29,19 @@ export class ChatComponent implements OnInit {
   constructor(private chatService: ChatService) {}
 
   ngOnInit(): void {
-    // Restore conversation from localStorage
-    const saved = localStorage.getItem(`angelai_chat_${this.documentId}`);
-    if (saved) {
-      try {
-        this.conversation = JSON.parse(saved);
-      } catch {
+    // Load history from server
+    this.chatService.getHistory(this.documentId, this.sessionId).subscribe({
+      next: (res) => {
+        this.conversation = res.messages.map(m => ({
+          question: m.question,
+          answer: m.answer,
+        }));
+      },
+      error: () => {
+        // History load failure is non-critical, start fresh
         this.conversation = [];
       }
-    }
+    });
   }
 
   get isDisabled(): boolean {
@@ -54,8 +57,7 @@ export class ChatComponent implements OnInit {
 
     this.chatService.sendQuestion(this.documentId, this.sessionId, q).subscribe({
       next: (res) => {
-        this.conversation.push({ question: q, answer: res.answer, timestamp: new Date() });
-        localStorage.setItem(`angelai_chat_${this.documentId}`, JSON.stringify(this.conversation));
+        this.conversation.push({ question: q, answer: res.answer });
         this.question = '';
         this.isLoading = false;
       },
@@ -67,7 +69,6 @@ export class ChatComponent implements OnInit {
   }
 
   onNewDocument(): void {
-    localStorage.removeItem(`angelai_chat_${this.documentId}`);
     this.newDocument.emit();
   }
 }

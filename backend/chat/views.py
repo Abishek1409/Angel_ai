@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from documents.models import Document
+from .models import ChatMessage
 from .services import retrieve_chunks, generate_answer
 
 
@@ -41,4 +42,27 @@ def query(request):
     except RuntimeError as e:
         return JsonResponse({"error": str(e)}, status=502)
 
+    # Persist to database
+    ChatMessage.objects.create(
+        document_id=document_id,
+        session_id=session_id,
+        question=question,
+        answer=answer,
+    )
+
     return JsonResponse({"answer": answer, "sources": chunks})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def history(request, document_id):
+    session_id = request.GET.get("session_id")
+    if not session_id:
+        return JsonResponse({"error": "session_id is required."}, status=400)
+
+    messages = ChatMessage.objects.filter(
+        document_id=document_id,
+        session_id=session_id,
+    ).values("id", "question", "answer", "created_at")
+
+    return JsonResponse({"messages": list(messages)}, json_dumps_params={"default": str})
