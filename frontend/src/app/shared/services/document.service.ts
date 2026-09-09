@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 export interface UploadResponse {
   document_id: string;
@@ -15,7 +16,7 @@ export interface StatusResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
-  private apiUrl = 'https://angelai-production.up.railway.app/api/documents';
+  private apiUrl = `${environment.apiUrl}/api/documents`;
 
   constructor(private http: HttpClient) {}
 
