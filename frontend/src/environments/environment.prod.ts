@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https:angelai-production.up.railway.app'
+  apiUrl: 'https://angel-ai-cak5.onrender.com'
 };
