@@ -2,7 +2,7 @@ services:
   - type: web
     name: angel-ai-backend
     env: python
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: cd backend && pip install -r requirements.txt && python manage.py migrate
     startCommand: cd backend && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --workers 2
     envVars:
       - key: PYTHON_VERSION
@@ -13,7 +13,3 @@ services:
         value: angel-ai-cak5.onrender.com,localhost,127.0.0.1
       - key: DJANGO_SECRET_KEY
         generateValue: true
-      - key: CARGO_HOME
-        value: /tmp/cargo
-      - key: RUSTUP_HOME
-        value: /tmp/rustup

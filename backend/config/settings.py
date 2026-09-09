@@ -40,10 +40,15 @@ DATABASES = {
     }
 }
 
-# Use PostgreSQL if DATABASE_URL is set (production)
+# Use PostgreSQL if DATABASE_URL is set (production), otherwise SQLite
 if "DATABASE_URL" in os.environ:
     import dj_database_url
     DATABASES["default"] = dj_database_url.config(conn_max_age=600)
+else:
+    # SQLite fallback - create directory if needed
+    db_path = BASE_DIR / "db.sqlite3"
+    db_path.parent.mkdir(exist_ok=True)
+    DATABASES["default"]["NAME"] = db_path
 
 STATIC_URL = "/static/"
 
