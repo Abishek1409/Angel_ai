@@ -35,10 +35,15 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
+        "ENGINE": "django.db.backends.postgresql" if os.environ.get("DATABASE_URL") else "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+# Use PostgreSQL if DATABASE_URL is set (production)
+if "DATABASE_URL" in os.environ:
+    import dj_database_url
+    DATABASES["default"] = dj_database_url.config(conn_max_age=600)
 
 STATIC_URL = "/static/"
 
