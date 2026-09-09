@@ -2,8 +2,7 @@ django>=4.2,<5.0
 djangorestframework>=3.14
 django-cors-headers>=4.3
 google-genai>=1.0
-numpy<2.0  # ChromaDB requires numpy 1.x
-chromadb>=0.4.24,<0.5  # Use older stable version without Rust compilation issues
+chromadb==0.4.22  # Stable version compatible with Python 3.11
 pymupdf>=1.23
 python-dotenv>=1.0
 gunicorn>=21.2
