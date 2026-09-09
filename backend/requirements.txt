@@ -1,11 +1,17 @@
 django>=4.2,<5.0
 djangorestframework>=3.14
 django-cors-headers>=4.3
-google-genai>=1.0
-numpy>=1.24,<2.0  # ChromaDB requires numpy 1.x
-chromadb==0.4.22  # Stable version compatible with Python 3.11
-pymupdf>=1.23
 python-dotenv>=1.0
 gunicorn>=21.2
-psycopg2-binary>=2.9  # PostgreSQL adapter for production
-dj-database-url>=2.1  # Parse DATABASE_URL for PostgreSQL
+
+# Database
+psycopg2-binary>=2.9
+dj-database-url>=2.1
+
+# AI and Vector DB - pinned versions for stability
+google-genai==1.0.0
+numpy==1.26.4
+chromadb==0.4.22
+
+# Document processing
+pymupdf>=1.23

@@ -12,8 +12,8 @@ DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# Allow Railway and Vercel domains automatically
-ALLOWED_HOSTS += [".railway.app", ".vercel.app"]
+# Allow Railway, Vercel, and Render domains automatically
+ALLOWED_HOSTS += [".railway.app", ".vercel.app", ".onrender.com"]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -67,3 +67,35 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Logging
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "documents": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "chat": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+    },
+}
