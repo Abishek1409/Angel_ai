@@ -126,7 +126,7 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
             batch = chunks[i:i + _COHERE_EMBED_BATCH]
             for chunk in batch:
                 result = genai.embed_content(
-                    model='models/embedding-001',
+                    model='models/text-embedding-004',
                     content=chunk,
                     task_type="retrieval_document"
                 )
