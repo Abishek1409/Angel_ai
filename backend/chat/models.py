@@ -4,7 +4,7 @@ from django.db import models
 
 class ChatMessage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    document_id = models.UUIDField()
+    document_id = models.UUIDField(null=True, blank=True)
     session_id = models.UUIDField()
     question = models.TextField()
     answer = models.TextField()

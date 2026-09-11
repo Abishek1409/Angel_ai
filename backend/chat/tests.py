@@ -158,8 +158,9 @@ class RetrieveChunksTests(TestCase):
 
     @patch("chat.services.get_cached_embedding", return_value=None)
     @patch("chat.services.cache_embedding")
+    @patch("chat.services._embed_text", return_value=[0.1, 0.2, 0.3])
     @patch("chat.services._get_chroma_client")
-    def test_queries_chromadb_with_embedding(self, mock_get_chroma, mock_cache, mock_get_cache):
+    def test_queries_chromadb_with_embedding(self, mock_get_chroma, mock_embed, mock_cache, mock_get_cache):
         mock_collection = MagicMock()
         mock_collection.count.return_value = 5
         mock_collection.query.return_value = {

@@ -3,7 +3,7 @@ import threading
 import math
 import chromadb
 import fitz  # PyMuPDF
-import google.generativeai as genai
+import requests
 from django.conf import settings
 
 # Persistent ChromaDB stored on disk so data survives across requests
@@ -17,8 +17,8 @@ def _get_chroma_client():
     return chromadb.PersistentClient(path=_CHROMA_PATH)
 
 
-def _get_gemini_client():
-    """Gemini client for embeddings only (Groq is used for LLM chat)."""
+def _get_gemini_api_key():
+    """Return the Gemini API key used for embeddings."""
     api_key = settings.GEMINI_API_KEY
     if not api_key or api_key == "AIza-your-gemini-api-key-here":
         raise ValueError(
@@ -26,8 +26,24 @@ def _get_gemini_client():
             "or environment variables. Get a free API key at https://makersuite.google.com/app/apikey "
             "(Gemini is used for embeddings only, Groq is used for chat)"
         )
-    genai.configure(api_key=api_key)
-    return genai
+    return api_key
+
+
+def _embed_text(text: str, task_type: str) -> list[float]:
+    model = settings.GEMINI_EMBEDDING_MODEL.removeprefix("models/")
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent",
+        params={"key": _get_gemini_api_key()},
+        json={
+            "model": f"models/{model}",
+            "content": {"parts": [{"text": text}]},
+            "taskType": task_type,
+        },
+        timeout=60,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Gemini embedding API returned {response.status_code}: {response.text}")
+    return response.json()["embedding"]["values"]
 
 
 def extract_text(file_path: str, filename: str) -> str:
@@ -120,17 +136,11 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
         return
 
     try:
-        genai = _get_gemini_client()
         embeddings: list[list[float]] = []
         for i in range(0, len(chunks), _EMBED_BATCH_SIZE):
             batch = chunks[i:i + _EMBED_BATCH_SIZE]
             for chunk in batch:
-                result = genai.embed_content(
-                    model=settings.GEMINI_EMBEDDING_MODEL,
-                    content=chunk,
-                    task_type="retrieval_document"
-                )
-                embeddings.append(result['embedding'])
+                embeddings.append(_embed_text(chunk, "RETRIEVAL_DOCUMENT"))
     except Exception as e:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
@@ -190,7 +200,10 @@ def delete_document_from_chromadb(document_id: str) -> None:
     """
     try:
         chroma = _get_chroma_client()
-        collection = chroma.get_collection(name="all_documents")
+        try:
+            collection = chroma.get_collection(name="all_documents")
+        except Exception:
+            return
         
         # Get all chunk IDs for this document
         results = collection.get(where={"doc_id": {"$eq": document_id}})

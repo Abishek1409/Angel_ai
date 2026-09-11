@@ -1,27 +1,15 @@
 import os
 import chromadb
-import google.generativeai as genai
 from groq import Groq
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
+from documents.services import _embed_text
 
 _CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 
 
 def _get_chroma_client():
     return chromadb.PersistentClient(path=_CHROMA_PATH)
-
-
-def _get_gemini_client():
-    """Gemini client for embeddings only."""
-    api_key = settings.GEMINI_API_KEY
-    if not api_key or api_key == "AIza-your-gemini-api-key-here":
-        raise ValueError(
-            "Gemini API key is not configured for embeddings. Please set GEMINI_API_KEY in your .env file "
-            "or environment variables. Get a free API key at https://makersuite.google.com/app/apikey"
-        )
-    genai.configure(api_key=api_key)
-    return genai
 
 
 def _get_groq_client():
@@ -48,25 +36,6 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         Tuple of (chunk_texts, chunk_metadata_list, chunk_ids, cache_hit).
         Returns empty lists and False if no results.
     """
-    # Check cache for embedding using raw query text hash
-    cached_embedding = get_cached_embedding(question)
-    embedding_cache_hit = cached_embedding is not None
-
-    if cached_embedding:
-        question_embedding = cached_embedding
-    else:
-        try:
-            genai = _get_gemini_client()
-            result = genai.embed_content(
-                model=settings.GEMINI_EMBEDDING_MODEL,
-                content=question,
-                task_type="retrieval_query"
-            )
-            question_embedding = result['embedding']
-            cache_embedding(question, question_embedding)
-        except Exception as e:
-            raise RuntimeError(f"Failed to embed question: {e}") from e
-
     try:
         chroma_client = _get_chroma_client()
         collection = chroma_client.get_collection(name="all_documents")
@@ -76,7 +45,20 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
     try:
         collection_size = collection.count()
         if collection_size == 0:
-            return [], [], [], embedding_cache_hit
+            return [], [], [], False
+
+        # Check cache for embedding using raw query text hash.
+        cached_embedding = get_cached_embedding(question)
+        embedding_cache_hit = cached_embedding is not None
+
+        if cached_embedding:
+            question_embedding = cached_embedding
+        else:
+            try:
+                question_embedding = _embed_text(question, "RETRIEVAL_QUERY")
+                cache_embedding(question, question_embedding)
+            except Exception as e:
+                raise RuntimeError(f"Failed to embed question: {e}") from e
 
         where_filter = {"doc_id": {"$eq": document_id}} if document_id else None
 

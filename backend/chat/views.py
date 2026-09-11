@@ -46,7 +46,7 @@ def query(request):
 
     # Persist to database
     ChatMessage.objects.create(
-        document_id=document_id if document_id else "multi",
+        document_id=document_id,
         session_id=session_id,
         question=question,
         answer=answer,
@@ -72,9 +72,10 @@ def history(request, document_id):
     if not session_id:
         return JsonResponse({"error": "session_id is required."}, status=400)
 
+    history_filter = {"document_id__isnull": True} if document_id == "multi" else {"document_id": document_id}
     messages = ChatMessage.objects.filter(
-        document_id=document_id,
         session_id=session_id,
+        **history_filter,
     ).values("id", "question", "answer", "created_at")
 
     return JsonResponse({"messages": list(messages)}, json_dumps_params={"default": str})
