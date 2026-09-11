@@ -1,5 +1,4 @@
 import os
-from groq import Groq
 from google import genai
 from google.genai import types
 import chromadb
@@ -117,27 +116,19 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     )
 
     try:
-        # Use Groq if API key is available (free and fast)
+        # Use Groq (primary)
         if _use_groq():
-            groq_client = Groq(api_key=settings.GROQ_API_KEY)
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",  # Fast and free
+            from groq import Groq
+            client = Groq(api_key=settings.GROQ_API_KEY)
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=1024,
             )
             answer = response.choices[0].message.content
         else:
-            # Fallback to Gemini
-            genai_client = genai.Client(
-                api_key=settings.GEMINI_API_KEY,
-                http_options=types.HttpOptions(api_version="v1beta"),
-            )
-            response = genai_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-            )
-            answer = response.text
+            raise RuntimeError("GROQ_API_KEY not configured. Please set it in environment variables.")
         
         # Extract unique source filenames
         sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
