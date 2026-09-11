@@ -1,6 +1,7 @@
 import os
 import chromadb
-import cohere
+import google.generativeai as genai
+from groq import Groq
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
 
@@ -11,8 +12,27 @@ def _get_chroma_client():
     return chromadb.PersistentClient(path=_CHROMA_PATH)
 
 
-def _get_cohere_client():
-    return cohere.Client(settings.COHERE_API_KEY)
+def _get_gemini_client():
+    """Gemini client for embeddings only."""
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or api_key == "AIza-your-gemini-api-key-here":
+        raise ValueError(
+            "Gemini API key is not configured for embeddings. Please set GEMINI_API_KEY in your .env file "
+            "or environment variables. Get a free API key at https://makersuite.google.com/app/apikey"
+        )
+    genai.configure(api_key=api_key)
+    return genai
+
+
+def _get_groq_client():
+    """Groq client for LLM chat."""
+    api_key = settings.GROQ_API_KEY
+    if not api_key or api_key == "gsk-your-groq-api-key-here":
+        raise ValueError(
+            "Groq API key is not configured. Please set GROQ_API_KEY in your .env file "
+            "or environment variables. Get a free API key at https://console.groq.com/"
+        )
+    return Groq(api_key=api_key)
 
 
 def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> tuple[list[str], list[dict], list[str], bool]:
@@ -36,13 +56,14 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         question_embedding = cached_embedding
     else:
         try:
-            co = _get_cohere_client()
-            response = co.embed(
-                texts=[question],
-                model="embed-english-v3.0",
-                input_type="search_query",
+            genai = _get_gemini_client()
+            model = genai.GenerativeModel('models/embedding-001')
+            result = genai.embed_content(
+                model=model,
+                content=question,
+                task_type="retrieval_query"
             )
-            question_embedding = response.embeddings[0]
+            question_embedding = result['embedding']
             cache_embedding(question, question_embedding)
         except Exception as e:
             raise RuntimeError(f"Failed to embed question: {e}") from e
@@ -73,7 +94,7 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
 
 def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chunk_ids: list[str]) -> tuple[str, list[str], list[dict], bool]:
     """
-    Build a prompt from retrieved chunks and generate an answer via Cohere.
+    Build a prompt from retrieved chunks and generate an answer via Groq.
 
     Args:
         question: The user's natural language question.
@@ -108,14 +129,17 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     )
 
     try:
-        co = _get_cohere_client()
-        response = co.chat(
-            model="command-r-plus",
-            message=prompt,
+        client = _get_groq_client()
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant. Answer questions using only the provided context."},
+                {"role": "user", "content": prompt}
+            ],
             temperature=0.3,
             max_tokens=1024,
         )
-        answer = response.text
+        answer = response.choices[0].message.content
 
         sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
         citations = [
@@ -132,4 +156,4 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
 
         return answer, sources, citations, False
     except Exception as e:
-        raise RuntimeError(f"Failed to generate answer with Cohere: {str(e)}. Error type: {type(e).__name__}") from e
+        raise RuntimeError(f"Failed to generate answer with Groq: {str(e)}. Error type: {type(e).__name__}") from e

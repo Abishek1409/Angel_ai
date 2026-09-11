@@ -68,8 +68,11 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
 ]
 
-# Cohere API
-COHERE_API_KEY = os.environ.get("COHERE_API_KEY", "")
+# Gemini API (for embeddings - free tier available)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+# Groq API (for LLM chat - free and fast)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # Redis cache
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
