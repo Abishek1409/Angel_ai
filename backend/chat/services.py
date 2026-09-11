@@ -1,6 +1,6 @@
 import os
 import chromadb
-import google.genai as genai
+import google.generativeai as genai
 from groq import Groq
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
@@ -20,8 +20,8 @@ def _get_gemini_client():
             "Gemini API key is not configured for embeddings. Please set GEMINI_API_KEY in your .env file "
             "or environment variables. Get a free API key at https://makersuite.google.com/app/apikey"
         )
-    client = genai.Client(api_key=api_key)
-    return client
+    genai.configure(api_key=api_key)
+    return genai
 
 
 def _get_groq_client():
@@ -56,12 +56,14 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         question_embedding = cached_embedding
     else:
         try:
-            client = _get_gemini_client()
-            result = client.models.embed_content(
-                model='models/embedding-001',
-                contents=[question],
+            genai = _get_gemini_client()
+            model = genai.GenerativeModel('models/embedding-001')
+            result = genai.embed_content(
+                model=model,
+                content=question,
+                task_type="retrieval_query"
             )
-            question_embedding = result.embeddings[0].values
+            question_embedding = result['embedding']
             cache_embedding(question, question_embedding)
         except Exception as e:
             raise RuntimeError(f"Failed to embed question: {e}") from e

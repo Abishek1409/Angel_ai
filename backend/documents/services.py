@@ -3,8 +3,7 @@ import threading
 import math
 import chromadb
 import fitz  # PyMuPDF
-import google.genai as genai
-from google.genai import types
+import google.generativeai as genai
 from django.conf import settings
 
 # Persistent ChromaDB stored on disk so data survives across requests
@@ -27,8 +26,8 @@ def _get_gemini_client():
             "or environment variables. Get a free API key at https://makersuite.google.com/app/apikey "
             "(Gemini is used for embeddings only, Groq is used for chat)"
         )
-    client = genai.Client(api_key=api_key)
-    return client
+    genai.configure(api_key=api_key)
+    return genai
 
 
 def extract_text(file_path: str, filename: str) -> str:
@@ -121,16 +120,18 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
         return
 
     try:
-        client = _get_gemini_client()
+        genai = _get_gemini_client()
+        model = genai.GenerativeModel('models/embedding-001')
         embeddings: list[list[float]] = []
         for i in range(0, len(chunks), _COHERE_EMBED_BATCH):
             batch = chunks[i:i + _COHERE_EMBED_BATCH]
             for chunk in batch:
-                result = client.models.embed_content(
-                    model='models/embedding-001',
-                    contents=[chunk],
+                result = genai.embed_content(
+                    model=model,
+                    content=chunk,
+                    task_type="retrieval_document"
                 )
-                embeddings.append(result.embeddings[0].values)
+                embeddings.append(result['embedding'])
     except Exception as e:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
