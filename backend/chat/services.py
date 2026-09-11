@@ -57,9 +57,8 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
     else:
         try:
             genai = _get_gemini_client()
-            model = genai.GenerativeModel('models/embedding-001')
             result = genai.embed_content(
-                model=model,
+                model='models/embedding-001',
                 content=question,
                 task_type="retrieval_query"
             )
