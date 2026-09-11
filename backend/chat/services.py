@@ -119,7 +119,14 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
         # Use Groq (primary)
         if _use_groq():
             from groq import Groq
-            client = Groq(api_key=settings.GROQ_API_KEY)
+            
+            # Initialize Groq client
+            try:
+                client = Groq(api_key=settings.GROQ_API_KEY)
+            except TypeError as init_error:
+                # If Groq initialization fails with TypeError, try without extra params
+                raise RuntimeError(f"Groq client initialization error: {init_error}. Check groq package version.")
+            
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
@@ -137,5 +144,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
         cache_response(question, chunk_ids, answer, sources)
         
         return answer, sources, False
+    except RuntimeError:
+        raise
     except Exception as e:
-        raise RuntimeError(f"Failed to generate answer: {e}") from e
+        raise RuntimeError(f"Failed to generate answer with Groq: {str(e)}. Error type: {type(e).__name__}") from e
