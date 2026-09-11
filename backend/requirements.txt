@@ -4,6 +4,7 @@ django-cors-headers>=4.3
 python-dotenv>=1.0
 gunicorn>=21.2
 requests>=2.31.0
+httpx==0.27.2
 
 # Database
 psycopg2-binary>=2.9
