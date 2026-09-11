@@ -1,15 +1,18 @@
 import os
 import threading
 import math
+import logging
 import fitz  # PyMuPDF
 import requests
 from django.conf import settings
+from django.db import close_old_connections
 from config.chroma import get_chroma_client
 
 # Persistent ChromaDB stored on disk so data survives across requests
 _CHUNK_SIZE_CHARS = 500 * 4
 _OVERLAP_CHARS = 50 * 4
 _EMBED_BATCH_SIZE = 50
+logger = logging.getLogger(__name__)
 
 
 def _get_gemini_api_key():
@@ -165,6 +168,7 @@ def process_document(document_id: str) -> None:
     # Import here to avoid circular imports
     from .models import Document
 
+    close_old_connections()
     try:
         doc = Document.objects.get(id=document_id)
         text = extract_text(doc.file_path, doc.filename)
@@ -174,6 +178,7 @@ def process_document(document_id: str) -> None:
         doc.error_message = ""
         doc.save()
     except Exception as e:
+        logger.exception("Document processing failed for %s", document_id)
         try:
             doc = Document.objects.get(id=document_id)
             doc.status = "error"
@@ -181,6 +186,8 @@ def process_document(document_id: str) -> None:
             doc.save()
         except Exception:
             pass
+    finally:
+        close_old_connections()
 
 
 def delete_document_from_chromadb(document_id: str) -> None:

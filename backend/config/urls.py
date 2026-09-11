@@ -5,6 +5,7 @@ from .health import health_check
 
 
 urlpatterns = [
+    path("", health_check),
     path("health/", health_check),
     path("api/documents/", include("documents.urls")),
     path("api/chat/", include("chat.urls")),
