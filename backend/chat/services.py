@@ -1,4 +1,5 @@
 import os
+from groq import Groq
 from google import genai
 from google.genai import types
 import chromadb
@@ -10,6 +11,11 @@ _CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 
 def _get_chroma_client():
     return chromadb.PersistentClient(path=_CHROMA_PATH)
+
+
+def _use_groq():
+    """Check if Groq API should be used instead of Gemini."""
+    return bool(settings.GROQ_API_KEY)
 
 
 def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> tuple[list[str], list[dict], list[str], bool]:
@@ -77,7 +83,7 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
 
 def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chunk_ids: list[str]) -> tuple[str, list[str], bool]:
     """
-    Build a prompt from retrieved chunks and generate an answer via Gemini.
+    Build a prompt from retrieved chunks and generate an answer via Groq or Gemini.
 
     Args:
         question: The user's natural language question.
@@ -102,11 +108,6 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
         answer, sources = cached_response
         return answer, sources, True
 
-    genai_client = genai.Client(
-        api_key=settings.GEMINI_API_KEY,
-        http_options=types.HttpOptions(api_version="v1beta"),
-    )
-
     context = "\n\n---\n\n".join(chunks)
     prompt = (
         "You are a helpful assistant. Answer the question below using only the provided context.\n\n"
@@ -116,15 +117,30 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     )
 
     try:
-        response = genai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        # Use Groq if API key is available (free and fast)
+        if _use_groq():
+            groq_client = Groq(api_key=settings.GROQ_API_KEY)
+            response = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",  # Fast and free
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=1024,
+            )
+            answer = response.choices[0].message.content
+        else:
+            # Fallback to Gemini
+            genai_client = genai.Client(
+                api_key=settings.GEMINI_API_KEY,
+                http_options=types.HttpOptions(api_version="v1beta"),
+            )
+            response = genai_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            answer = response.text
         
         # Extract unique source filenames
         sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
-        
-        answer = response.text
         
         # Cache the response
         cache_response(question, chunk_ids, answer, sources)

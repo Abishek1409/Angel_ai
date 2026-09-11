@@ -27,24 +27,31 @@
 .app-main {
   flex: 1;
   display: flex;
-  flex-direction: column;
   width: 100%;
+  overflow: hidden;
+}
+
+.app-main--with-sidebar {
+  flex-direction: row;
+}
+
+.app-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* For upload view without sidebar */
+.app-main:not(.app-main--with-sidebar) .app-content {
   max-width: 760px;
   margin: 0 auto;
   padding: 2rem 1rem;
 }
 
 @media (max-width: 600px) {
-  .app-main { padding: 1.25rem 0.75rem; }
-}
-
-
-.app-main--with-sidebar {
-  display: flex;
-  height: calc(100vh - 64px);
-}
-
-.app-content {
-  flex: 1;
-  overflow: hidden;
+  .app-main:not(.app-main--with-sidebar) .app-content { 
+    padding: 1.25rem 0.75rem; 
+  }
 }

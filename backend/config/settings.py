@@ -68,8 +68,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
 ]
 
-# Gemini API
+# Gemini/Groq API
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")  # Free alternative
 
 # Redis cache
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
