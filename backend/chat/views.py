@@ -16,41 +16,52 @@ def query(request):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({"error": "Invalid JSON body."}, status=400)
 
-    document_id = body.get("document_id")
+    document_id = body.get("document_id")  # Now optional
     session_id = body.get("session_id")
     question = body.get("question")
 
-    if not document_id or not session_id or not question:
+    if not session_id or not question:
         return JsonResponse(
-            {"error": "document_id, session_id, and question are required."},
+            {"error": "session_id and question are required."},
             status=400,
         )
 
-    try:
-        doc = Document.objects.get(id=document_id)
-    except Document.DoesNotExist:
-        return JsonResponse({"error": f"Document {document_id} not found in database."}, status=404)
-    except Exception as e:
-        return JsonResponse({"error": f"Database error: {e}"}, status=500)
+    # If document_id is provided, verify it exists and is ready
+    if document_id:
+        try:
+            doc = Document.objects.get(id=document_id)
+        except Document.DoesNotExist:
+            return JsonResponse({"error": f"Document {document_id} not found in database."}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": f"Database error: {e}"}, status=500)
 
-    if doc.status != "ready":
-        return JsonResponse({"error": f"Document status is '{doc.status}'. Error: {doc.error_message}"}, status=404)
+        if doc.status != "ready":
+            return JsonResponse({"error": f"Document status is '{doc.status}'. Error: {doc.error_message}"}, status=404)
 
     try:
-        chunks = retrieve_chunks(document_id, question)
-        answer = generate_answer(question, chunks)
+        chunks, metadatas, chunk_ids, embedding_cached = retrieve_chunks(question, document_id=document_id)
+        answer, sources, response_cached = generate_answer(question, chunks, metadatas, chunk_ids)
     except RuntimeError as e:
         return JsonResponse({"error": str(e)}, status=502)
 
     # Persist to database
     ChatMessage.objects.create(
-        document_id=document_id,
+        document_id=document_id if document_id else "multi",  # Use 'multi' for cross-document queries
         session_id=session_id,
         question=question,
         answer=answer,
     )
 
-    return JsonResponse({"answer": answer, "sources": chunks})
+    return JsonResponse({
+        "answer": answer,
+        "sources": sources,
+        "cached": response_cached or embedding_cached,  # True if either was cached
+        "cache_details": {
+            "embedding_cached": embedding_cached,
+            "response_cached": response_cached
+        },
+        "chunks": chunks  # For debugging
+    })
 
 
 @csrf_exempt

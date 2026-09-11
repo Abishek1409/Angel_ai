@@ -79,3 +79,49 @@ def document_status(request, document_id):
         return JsonResponse({"error": "Document not found."}, status=404)
 
     return JsonResponse({"status": doc.status, "error_message": doc.error_message})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def list_documents(request):
+    """
+    List all documents for a given session_id.
+    """
+    session_id = request.GET.get("session_id")
+    if not session_id:
+        return JsonResponse({"error": "session_id is required."}, status=400)
+    
+    documents = Document.objects.filter(session_id=session_id).values(
+        "id", "filename", "status", "created_at", "error_message"
+    ).order_by("-created_at")
+    
+    return JsonResponse({"documents": list(documents)}, json_dumps_params={"default": str})
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_document(request, document_id):
+    """
+    Delete a document from both the database and ChromaDB.
+    """
+    try:
+        doc = Document.objects.get(id=document_id)
+    except Document.DoesNotExist:
+        return JsonResponse({"error": "Document not found."}, status=404)
+    
+    try:
+        # Delete from ChromaDB
+        from .services import delete_document_from_chromadb
+        delete_document_from_chromadb(str(document_id))
+        
+        # Delete file from disk
+        if os.path.exists(doc.file_path):
+            os.remove(doc.file_path)
+        
+        # Delete from database
+        doc.delete()
+        
+        return JsonResponse({"message": "Document deleted successfully."})
+    except Exception as e:
+        logger.error(f"Delete error: {str(e)}", exc_info=True)
+        return JsonResponse({"error": f"Failed to delete document: {str(e)}"}, status=500)

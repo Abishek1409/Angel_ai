@@ -15,3 +15,6 @@ chromadb==0.4.22
 
 # Document processing
 pymupdf>=1.23
+
+# Caching
+redis==5.0.1

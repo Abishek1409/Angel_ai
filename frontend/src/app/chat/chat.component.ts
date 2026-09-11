@@ -7,6 +7,8 @@ import { MessageComponent } from './message/message.component';
 export interface Message {
   question: string;
   answer: string;
+  sources?: string[];
+  cached?: boolean;
 }
 
 @Component({
@@ -55,9 +57,14 @@ export class ChatComponent implements OnInit {
     this.isLoading = true;
     this.errorMessage = '';
 
-    this.chatService.sendQuestion(this.documentId, this.sessionId, q).subscribe({
+    this.chatService.sendQuestion(this.documentId || null, this.sessionId, q).subscribe({
       next: (res) => {
-        this.conversation.push({ question: q, answer: res.answer });
+        this.conversation.push({ 
+          question: q, 
+          answer: res.answer,
+          sources: res.sources,
+          cached: res.cached
+        });
         this.question = '';
         this.isLoading = false;
       },

@@ -6,6 +6,11 @@ import { environment } from '../../../environments/environment';
 export interface QueryResponse {
   answer: string;
   sources: string[];
+  cached?: boolean;
+  cache_details?: {
+    embedding_cached: boolean;
+    response_cached: boolean;
+  };
 }
 
 export interface HistoryMessage {
@@ -21,12 +26,15 @@ export class ChatService {
 
   constructor(private http: HttpClient) {}
 
-  sendQuestion(documentId: string, sessionId: string, question: string): Observable<QueryResponse> {
-    return this.http.post<QueryResponse>(`${this.apiUrl}/query/`, {
-      document_id: documentId,
+  sendQuestion(documentId: string | null, sessionId: string, question: string): Observable<QueryResponse> {
+    const body: any = {
       session_id: sessionId,
       question
-    });
+    };
+    if (documentId) {
+      body.document_id = documentId;
+    }
+    return this.http.post<QueryResponse>(`${this.apiUrl}/query/`, body);
   }
 
   getHistory(documentId: string, sessionId: string): Observable<{ messages: HistoryMessage[] }> {

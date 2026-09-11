@@ -37,3 +37,14 @@
 @media (max-width: 600px) {
   .app-main { padding: 1.25rem 0.75rem; }
 }
+
+
+.app-main--with-sidebar {
+  display: flex;
+  height: calc(100vh - 64px);
+}
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+}

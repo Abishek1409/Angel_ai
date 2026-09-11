@@ -86,15 +86,16 @@ def chunk_text(text: str) -> list[str]:
     return chunks
 
 
-def embed_and_store(document_id: str, chunks: list[str], filename: str) -> None:
+def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_date: str) -> None:
     """
-    Generate embeddings for each chunk via Gemini text-embedding-004 and store
-    them in a ChromaDB collection named doc_{document_id}.
+    Generate embeddings for each chunk via Gemini and store them in a shared
+    ChromaDB collection 'all_documents' with metadata tagging.
 
     Args:
         document_id: UUID string of the Document record.
         chunks: List of text chunk strings.
         filename: Original filename stored as metadata.
+        upload_date: ISO format upload timestamp.
 
     Raises:
         RuntimeError: If embedding or storage fails.
@@ -118,12 +119,18 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str) -> None:
 
     try:
         chroma = _get_chroma_client()
-        collection = chroma.get_or_create_collection(name=f"doc_{document_id}")
+        # Use a shared collection for all documents
+        collection = chroma.get_or_create_collection(name="all_documents")
         collection.upsert(
-            ids=[f"chunk_{i}" for i in range(len(chunks))],
+            ids=[f"{document_id}_chunk_{i}" for i in range(len(chunks))],
             documents=chunks,
             embeddings=embeddings,
-            metadatas=[{"source": filename, "chunk_index": i} for i in range(len(chunks))],
+            metadatas=[{
+                "source": filename,
+                "doc_id": document_id,
+                "upload_date": upload_date,
+                "chunk_index": i
+            } for i in range(len(chunks))],
         )
     except Exception as e:
         raise RuntimeError(f"Failed to store embeddings in ChromaDB: {e}") from e
@@ -141,7 +148,7 @@ def process_document(document_id: str) -> None:
         doc = Document.objects.get(id=document_id)
         text = extract_text(doc.file_path, doc.filename)
         chunks = chunk_text(text)
-        embed_and_store(str(doc.id), chunks, doc.filename)
+        embed_and_store(str(doc.id), chunks, doc.filename, doc.created_at.isoformat())
         doc.status = "ready"
         doc.error_message = ""
         doc.save()
@@ -153,3 +160,28 @@ def process_document(document_id: str) -> None:
             doc.save()
         except Exception:
             pass
+
+
+def delete_document_from_chromadb(document_id: str) -> None:
+    """
+    Delete all chunks for a specific document from ChromaDB using metadata filtering.
+
+    Args:
+        document_id: UUID string of the Document record.
+
+    Raises:
+        RuntimeError: If deletion fails.
+    """
+    try:
+        chroma = _get_chroma_client()
+        collection = chroma.get_collection(name="all_documents")
+        
+        # Get all chunk IDs for this document
+        results = collection.get(
+            where={"doc_id": document_id}
+        )
+        
+        if results["ids"]:
+            collection.delete(ids=results["ids"])
+    except Exception as e:
+        raise RuntimeError(f"Failed to delete document from ChromaDB: {e}") from e

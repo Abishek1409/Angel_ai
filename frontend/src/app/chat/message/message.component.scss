@@ -68,3 +68,38 @@
     border-bottom-left-radius: 3px;
   }
 }
+
+
+.msg__sources {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+}
+
+.msg__sources-label {
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.msg__sources-list {
+  color: #888;
+}
+
+.msg__source {
+  font-style: italic;
+}
+
+.msg__cache-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}

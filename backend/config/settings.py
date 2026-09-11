@@ -71,6 +71,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 # Gemini API
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
+# Redis cache
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Logging

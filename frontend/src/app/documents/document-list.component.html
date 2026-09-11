@@ -1,0 +1,80 @@
+<div class="doc-list">
+  <div class="doc-list__header">
+    <h3 class="doc-list__title">My Documents</h3>
+    <button class="doc-list__upload-btn" (click)="onUploadNew()" title="Upload new document">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- All Documents Option -->
+  <div 
+    class="doc-item"
+    [class.doc-item--selected]="selectedDocId === null"
+    (click)="selectDocument(null)"
+  >
+    <div class="doc-item__icon">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
+      </svg>
+    </div>
+    <div class="doc-item__content">
+      <div class="doc-item__name">All Documents</div>
+      <div class="doc-item__meta">Search across all uploads</div>
+    </div>
+  </div>
+
+  <div class="doc-list__divider"></div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="doc-list__loading">
+    <div class="spinner"></div>
+    Loading documents...
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage" class="doc-list__error">{{ errorMessage }}</div>
+
+  <!-- Document List -->
+  <div class="doc-list__items" *ngIf="!isLoading">
+    <div *ngIf="documents.length === 0" class="doc-list__empty">
+      No documents yet
+    </div>
+
+    <div 
+      *ngFor="let doc of documents"
+      class="doc-item"
+      [class.doc-item--selected]="selectedDocId === doc.id"
+      (click)="selectDocument(doc.id)"
+    >
+      <div class="doc-item__icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div class="doc-item__content">
+        <div class="doc-item__name">{{ doc.filename }}</div>
+        <div class="doc-item__meta">
+          <span [class]="getStatusClass(doc.status)">{{ doc.status }}</span>
+          <span *ngIf="doc.error_message" class="doc-item__error" [title]="doc.error_message">
+            Error
+          </span>
+        </div>
+      </div>
+      <button 
+        class="doc-item__delete"
+        (click)="deleteDocument(doc.id, $event)"
+        title="Delete document"
+        *ngIf="doc.status !== 'pending'"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>

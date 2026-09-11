@@ -23,6 +23,8 @@
       *ngFor="let msg of conversation"
       [question]="msg.question"
       [answer]="msg.answer"
+      [sources]="msg.sources || []"
+      [cached]="msg.cached || false"
     ></app-message>
 
     <div *ngIf="isLoading" class="chat-thinking">

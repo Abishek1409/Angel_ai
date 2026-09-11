@@ -11,4 +11,6 @@ import { CommonModule } from '@angular/common';
 export class MessageComponent {
   @Input() question: string = '';
   @Input() answer: string = '';
+  @Input() sources: string[] = [];
+  @Input() cached: boolean = false;
 }

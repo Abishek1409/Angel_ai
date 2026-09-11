@@ -8,15 +8,25 @@
     </div>
   </header>
 
-  <main class="app-main">
-    @if (!documentId) {
-      <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
-    } @else {
-      <app-chat
-        [documentId]="documentId"
+  <main class="app-main" [class.app-main--with-sidebar]="showDocumentList">
+    @if (showDocumentList) {
+      <app-document-list
         [sessionId]="sessionId"
-        (newDocument)="onNewDocument()"
+        (documentSelected)="onDocumentSelected($event)"
+        (uploadNew)="onUploadNew()"
       />
     }
+
+    <div class="app-content">
+      @if (currentView === 'upload') {
+        <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
+      } @else if (currentView === 'chat') {
+        <app-chat
+          [documentId]="documentId || ''"
+          [sessionId]="sessionId"
+          (newDocument)="onNewDocument()"
+        />
+      }
+    </div>
   </main>
 </div>

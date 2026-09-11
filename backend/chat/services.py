@@ -3,6 +3,7 @@ from google import genai
 from google.genai import types
 import chromadb
 from django.conf import settings
+from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
 
 _CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 
@@ -11,64 +12,95 @@ def _get_chroma_client():
     return chromadb.PersistentClient(path=_CHROMA_PATH)
 
 
-def retrieve_chunks(document_id: str, question: str, top_k: int = 5) -> list[str]:
+def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> tuple[list[str], list[dict], list[str], bool]:
     """
     Embed the question and retrieve the top-k most similar chunks from ChromaDB.
-
+    
     Args:
-        document_id: UUID string of the Document record.
         question: The user's natural language question.
+        document_id: Optional UUID string to scope search to specific document.
         top_k: Number of chunks to retrieve.
 
     Returns:
-        List of chunk text strings. Returns empty list if collection does not exist.
+        Tuple of (chunk_texts, chunk_metadata_list, chunk_ids, cache_hit). 
+        Returns empty lists and False if no results.
     """
     client = genai.Client(
         api_key=settings.GEMINI_API_KEY,
         http_options=types.HttpOptions(api_version="v1beta"),
     )
 
-    try:
-        question_embedding = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=question,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
-        ).embeddings[0].values
-    except Exception as e:
-        raise RuntimeError(f"Failed to embed question: {e}") from e
+    # Check cache for embedding
+    cache_key = f"{question}_{document_id}" if document_id else question
+    cached_embedding = get_cached_embedding(cache_key)
+    embedding_cache_hit = cached_embedding is not None
+    
+    if cached_embedding:
+        question_embedding = cached_embedding
+    else:
+        try:
+            question_embedding = client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=question,
+                config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
+            ).embeddings[0].values
+            # Cache the embedding
+            cache_embedding(cache_key, question_embedding)
+        except Exception as e:
+            raise RuntimeError(f"Failed to embed question: {e}") from e
 
     try:
         chroma_client = _get_chroma_client()
-        collection = chroma_client.get_collection(name=f"doc_{document_id}")
+        collection = chroma_client.get_collection(name="all_documents")
     except Exception:
         # Collection does not exist
-        return []
+        return [], [], [], False
 
     try:
+        # Build where filter if document_id is specified
+        where_filter = {"doc_id": document_id} if document_id else None
+        
         results = collection.query(
             query_embeddings=[question_embedding],
             n_results=min(top_k, collection.count()),
+            where=where_filter,
         )
-        return results["documents"][0] if results["documents"] else []
+        
+        chunks = results["documents"][0] if results["documents"] else []
+        metadatas = results["metadatas"][0] if results["metadatas"] else []
+        ids = results["ids"][0] if results["ids"] else []
+        
+        return chunks, metadatas, ids, embedding_cache_hit
     except Exception as e:
         raise RuntimeError(f"Failed to query ChromaDB: {e}") from e
 
 
-def generate_answer(question: str, chunks: list[str]) -> str:
+def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chunk_ids: list[str]) -> tuple[str, list[str], bool]:
     """
     Build a prompt from retrieved chunks and generate an answer via Gemini.
 
     Args:
         question: The user's natural language question.
         chunks: List of relevant text chunks to use as context.
+        metadatas: List of metadata dicts corresponding to each chunk.
+        chunk_ids: List of chunk IDs from ChromaDB.
 
     Returns:
-        Generated answer string, or an informational message if no chunks provided.
+        Tuple of (generated_answer, list_of_source_filenames, cache_hit).
+        Returns informational message, empty list, and False if no chunks provided.
     """
     if not chunks:
         return (
-            "The document does not appear to contain information relevant to your question."
+            "No relevant information found in your documents. Please try rephrasing your question or upload relevant documents.",
+            [],
+            False
         )
+
+    # Check cache for response
+    cached_response = get_cached_response(question, chunk_ids)
+    if cached_response:
+        answer, sources = cached_response
+        return answer, sources, True
 
     genai_client = genai.Client(
         api_key=settings.GEMINI_API_KEY,
@@ -88,6 +120,15 @@ def generate_answer(question: str, chunks: list[str]) -> str:
             model="gemini-2.5-flash",
             contents=prompt,
         )
-        return response.text
+        
+        # Extract unique source filenames
+        sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
+        
+        answer = response.text
+        
+        # Cache the response
+        cache_response(question, chunk_ids, answer, sources)
+        
+        return answer, sources, False
     except Exception as e:
         raise RuntimeError(f"Failed to generate answer: {e}") from e

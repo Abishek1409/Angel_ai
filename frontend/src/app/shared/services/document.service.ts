@@ -14,6 +14,18 @@ export interface StatusResponse {
   error_message?: string;
 }
 
+export interface Document {
+  id: string;
+  filename: string;
+  status: string;
+  created_at: string;
+  error_message?: string;
+}
+
+export interface ListResponse {
+  documents: Document[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private apiUrl = `${environment.apiUrl}/api/documents`;
@@ -29,5 +41,15 @@ export class DocumentService {
 
   getStatus(documentId: string): Observable<StatusResponse> {
     return this.http.get<StatusResponse>(`${this.apiUrl}/${documentId}/status/`);
+  }
+
+  listDocuments(sessionId: string): Observable<ListResponse> {
+    return this.http.get<ListResponse>(`${this.apiUrl}/list/`, {
+      params: { session_id: sessionId }
+    });
+  }
+
+  deleteDocument(documentId: string): Observable<{message: string}> {
+    return this.http.delete<{message: string}>(`${this.apiUrl}/${documentId}/delete/`);
   }
 }
