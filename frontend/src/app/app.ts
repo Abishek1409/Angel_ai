@@ -29,10 +29,17 @@ export class App implements OnInit {
 
     this.documentId = localStorage.getItem(DOCUMENT_KEY) || null;
     
-    // If we have a document, show chat view
+    // Check if sidebar should be shown (stored in localStorage)
+    const shouldShowSidebar = localStorage.getItem('angelai_show_sidebar');
+    if (shouldShowSidebar === 'true') {
+      this.showDocumentList = true;
+    }
+    
+    // If we have a document, show chat view and sidebar
     if (this.documentId) {
       this.currentView = 'chat';
       this.showDocumentList = true;
+      localStorage.setItem('angelai_show_sidebar', 'true');
     }
   }
 
@@ -41,6 +48,7 @@ export class App implements OnInit {
     localStorage.setItem(DOCUMENT_KEY, documentId);
     this.currentView = 'chat';
     this.showDocumentList = true;
+    localStorage.setItem('angelai_show_sidebar', 'true');
   }
 
   onDocumentSelected(documentId: string | null): void {
@@ -55,9 +63,11 @@ export class App implements OnInit {
 
   onNewDocument(): void {
     this.currentView = 'upload';
+    // Keep sidebar visible if we already have documents
   }
 
   onUploadNew(): void {
     this.currentView = 'upload';
+    // Sidebar stays visible (showDocumentList remains true)
   }
 }
