@@ -33,7 +33,6 @@ def _embed_text(text: str, task_type: str) -> list[float]:
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent",
         params={"key": _get_gemini_api_key()},
         json={
-            "model": f"models/{model}",
             "content": {"parts": [{"text": text}]},
             "taskType": task_type,
         },
