@@ -6,7 +6,7 @@
 - ✅ **Extremely fast** - Up to 10x faster than Gemini
 - ✅ **High limits** - 30 requests/minute on free tier
 - ✅ **No 503 errors** - More reliable than Gemini free tier
-- ✅ **Better models** - Llama 3.3 70B is very capable
+- ✅ **Better models** - GPT OSS 120B is very capable
 
 ## Setup Steps
 
@@ -52,7 +52,7 @@ The system automatically detects which API to use:
 
 ```python
 if GROQ_API_KEY is set:
-    use Groq (llama-3.3-70b-versatile)
+    use Groq (openai/gpt-oss-120b)
 else:
     use Gemini (fallback)
 ```
@@ -69,7 +69,7 @@ No code changes needed - just set the environment variable!
 | **Speed** | ~500 tokens/sec | ~50 tokens/sec |
 | **Limits** | 30 requests/min | 15 requests/min |
 | **Reliability** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ (503 errors) |
-| **Model** | Llama 3.3 70B | Gemini 2.5 Flash |
+| **Model** | GPT OSS 120B | Gemini 2.5 Flash |
 | **Quality** | Excellent | Excellent |
 
 ---

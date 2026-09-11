@@ -126,7 +126,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
             }
             
             payload = {
-                "model": "llama-3.3-70b-versatile",
+                "model": settings.GROQ_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.3,
                 "max_tokens": 1024
