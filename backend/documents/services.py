@@ -2,6 +2,7 @@ import os
 import threading
 import math
 import chromadb
+from chromadb.config import Settings
 import fitz  # PyMuPDF
 import requests
 from django.conf import settings
@@ -14,7 +15,10 @@ _EMBED_BATCH_SIZE = 50
 
 
 def _get_chroma_client():
-    return chromadb.PersistentClient(path=_CHROMA_PATH)
+    return chromadb.PersistentClient(
+        path=_CHROMA_PATH,
+        settings=Settings(anonymized_telemetry=False),
+    )
 
 
 def _get_gemini_api_key():

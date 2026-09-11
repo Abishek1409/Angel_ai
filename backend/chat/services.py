@@ -1,5 +1,6 @@
 import os
 import chromadb
+from chromadb.config import Settings
 from groq import Groq
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
@@ -9,7 +10,10 @@ _CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 
 
 def _get_chroma_client():
-    return chromadb.PersistentClient(path=_CHROMA_PATH)
+    return chromadb.PersistentClient(
+        path=_CHROMA_PATH,
+        settings=Settings(anonymized_telemetry=False),
+    )
 
 
 def _get_groq_client():

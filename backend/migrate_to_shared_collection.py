@@ -18,6 +18,7 @@ django.setup()
 
 from documents.models import Document
 import chromadb
+from chromadb.config import Settings
 from django.conf import settings
 
 CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
@@ -25,7 +26,10 @@ CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 
 def migrate_documents():
     """Migrate all documents from old per-doc collections to shared collection."""
-    client = chromadb.PersistentClient(path=CHROMA_PATH)
+    client = chromadb.PersistentClient(
+        path=CHROMA_PATH,
+        settings=Settings(anonymized_telemetry=False),
+    )
     
     # Get or create shared collection
     shared_collection = client.get_or_create_collection(name="all_documents")
