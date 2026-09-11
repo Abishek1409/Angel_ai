@@ -2,7 +2,7 @@
 nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = ["pip install --no-cache-dir --upgrade -r requirements.txt"]
 
 [phases.build]
 cmds = ["python manage.py migrate"]

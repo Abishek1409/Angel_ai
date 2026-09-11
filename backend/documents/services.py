@@ -1,24 +1,15 @@
 import os
 import threading
 import math
-import chromadb
-from chromadb.config import Settings
 import fitz  # PyMuPDF
 import requests
 from django.conf import settings
+from config.chroma import get_chroma_client
 
 # Persistent ChromaDB stored on disk so data survives across requests
-_CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 _CHUNK_SIZE_CHARS = 500 * 4
 _OVERLAP_CHARS = 50 * 4
 _EMBED_BATCH_SIZE = 50
-
-
-def _get_chroma_client():
-    return chromadb.PersistentClient(
-        path=_CHROMA_PATH,
-        settings=Settings(anonymized_telemetry=False),
-    )
 
 
 def _get_gemini_api_key():
@@ -149,7 +140,7 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
     try:
-        chroma = _get_chroma_client()
+        chroma = get_chroma_client()
         collection = chroma.get_or_create_collection(name="all_documents")
         collection.upsert(
             ids=[f"{document_id}_chunk_{i}" for i in range(len(chunks))],
@@ -203,7 +194,7 @@ def delete_document_from_chromadb(document_id: str) -> None:
         RuntimeError: If deletion fails.
     """
     try:
-        chroma = _get_chroma_client()
+        chroma = get_chroma_client()
         try:
             collection = chroma.get_collection(name="all_documents")
         except Exception:
