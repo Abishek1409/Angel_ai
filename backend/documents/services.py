@@ -128,7 +128,7 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
             for chunk in batch:
                 result = client.models.embed_content(
                     model='models/embedding-001',
-                    content=chunk,
+                    contents=[chunk],
                 )
                 embeddings.append(result.embeddings[0].values)
     except Exception as e:

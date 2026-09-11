@@ -59,7 +59,7 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
             client = _get_gemini_client()
             result = client.models.embed_content(
                 model='models/embedding-001',
-                content=question,
+                contents=[question],
             )
             question_embedding = result.embeddings[0].values
             cache_embedding(question, question_embedding)
