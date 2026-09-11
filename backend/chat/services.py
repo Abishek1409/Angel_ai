@@ -82,7 +82,7 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
 
 def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chunk_ids: list[str]) -> tuple[str, list[str], bool]:
     """
-    Build a prompt from retrieved chunks and generate an answer via Groq or Gemini.
+    Build a prompt from retrieved chunks and generate an answer via Groq.
 
     Args:
         question: The user's natural language question.
@@ -116,24 +116,33 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     )
 
     try:
-        # Use Groq (primary)
+        # Use Groq via direct HTTP request (more reliable)
         if _use_groq():
-            from groq import Groq
+            import requests
             
-            # Initialize Groq client
-            try:
-                client = Groq(api_key=settings.GROQ_API_KEY)
-            except TypeError as init_error:
-                # If Groq initialization fails with TypeError, try without extra params
-                raise RuntimeError(f"Groq client initialization error: {init_error}. Check groq package version.")
+            headers = {
+                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            }
             
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=1024,
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 1024
+            }
+            
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30
             )
-            answer = response.choices[0].message.content
+            
+            if response.status_code != 200:
+                raise RuntimeError(f"Groq API error: {response.status_code} - {response.text}")
+            
+            answer = response.json()["choices"][0]["message"]["content"]
         else:
             raise RuntimeError("GROQ_API_KEY not configured. Please set it in environment variables.")
         
