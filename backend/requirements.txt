@@ -3,14 +3,14 @@ djangorestframework>=3.14
 django-cors-headers>=4.3
 python-dotenv>=1.0
 gunicorn>=21.2
-requests>=2.31.0  # For Groq API calls
+requests>=2.31.0
 
 # Database
 psycopg2-binary>=2.9
 dj-database-url>=2.1
 
-# AI and Vector DB - pinned versions for stability
-google-genai==1.0.0  # For embeddings
+# AI and Vector DB - pinned versions for stability (avoid Rust/tokenizers build issues)
+cohere==5.13.0
 numpy==1.26.4
 chromadb==0.4.22
 

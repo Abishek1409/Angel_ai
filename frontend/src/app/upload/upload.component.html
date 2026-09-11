@@ -1,54 +1,80 @@
 <div class="upload-wrap">
   <div class="upload-hero">
     <h1 class="upload-title">What would you like to explore?</h1>
-    <p class="upload-subtitle">Upload a document and ask questions about it</p>
+    <p class="upload-subtitle">Upload one or more documents and ask questions about them</p>
   </div>
 
   <div class="upload-card">
     <label
       class="drop-zone"
       for="file-input"
-      [class.drop-zone--active]="selectedFile"
+      [class.drop-zone--active]="selectedFiles.length > 0"
       [class.drop-zone--busy]="isBusy"
     >
       <div class="drop-zone__icon">
-        <svg *ngIf="!selectedFile" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg *ngIf="selectedFiles.length === 0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
-        <svg *ngIf="selectedFile" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg *ngIf="selectedFiles.length > 0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
-      <span class="drop-zone__text" *ngIf="!selectedFile">Click to choose a file</span>
-      <span class="drop-zone__filename" *ngIf="selectedFile">{{ selectedFile.name }}</span>
-      <span class="drop-zone__hint">PDF or TXT · up to 20 MB</span>
+      <span class="drop-zone__text" *ngIf="selectedFiles.length === 0">Click to choose files</span>
+      <span class="drop-zone__text" *ngIf="selectedFiles.length > 0">{{ selectedFiles.length }} file{{ selectedFiles.length > 1 ? 's' : '' }} selected</span>
+      <span class="drop-zone__hint">PDF or TXT · up to 20 MB each</span>
       <input
         id="file-input"
         type="file"
         accept=".pdf,.txt"
+        multiple
         (change)="onFileSelected($event)"
         [disabled]="isBusy"
         class="drop-zone__input"
-        aria-label="Select a PDF or TXT file"
+        aria-label="Select PDF or TXT files"
       />
     </label>
+
+    @if (selectedFiles.length > 0) {
+      <div class="file-list">
+        @for (file of selectedFiles; track file.name; let i = $index) {
+          <div class="file-item">
+            <span class="file-item__name">{{ file.name }}</span>
+            <span class="file-item__size">{{ (file.size / 1024 / 1024).toFixed(1) }} MB</span>
+            <button class="file-item__remove" (click)="removeFile(i)" [disabled]="isBusy" aria-label="Remove file">×</button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (queue.length > 0) {
+      <div class="upload-queue">
+        @for (item of queue; track item.documentId || item.file.name; let i = $index) {
+          <div class="queue-item" [class.queue-item--ready]="item.status === 'ready'" [class.queue-item--error]="item.status === 'error'">
+            <span class="queue-item__name">{{ item.file.name }}</span>
+            <span class="queue-item__status" [class.queue-item__status--ready]="item.status === 'ready'" [class.queue-item__status--error]="item.status === 'error'">
+              {{ item.status === 'uploading' ? 'Uploading…' : item.status === 'processing' ? 'Processing…' : item.status === 'ready' ? 'Ready' : 'Error' }}
+            </span>
+          </div>
+        }
+      </div>
+    }
 
     <p *ngIf="errorMessage" class="upload-error" role="alert">{{ errorMessage }}</p>
 
     <button
       class="upload-btn"
       (click)="onSubmit()"
-      [disabled]="!selectedFile || isBusy"
+      [disabled]="selectedFiles.length === 0 || isBusy"
     >
       <span class="upload-btn__spinner" *ngIf="isBusy"></span>
-      <span *ngIf="!isBusy">Analyze document</span>
+      <span *ngIf="!isBusy">Analyze {{ selectedFiles.length > 0 ? selectedFiles.length + ' document' + (selectedFiles.length > 1 ? 's' : '') : 'document' }}</span>
       <span *ngIf="isBusy">{{ status === 'uploading' ? 'Uploading…' : 'Processing…' }}</span>
     </button>
 
-    <p *ngIf="status === 'ready'" class="upload-success" role="status">
+    <p *ngIf="status === 'ready' && queue.length > 0" class="upload-success" role="status">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      {{ uploadedFilename }} is ready
+      {{ queue.filter(q => q.status === 'ready').length }} of {{ queue.length }} document{{ queue.length > 1 ? 's' : '' }} ready
     </p>
   </div>
 </div>

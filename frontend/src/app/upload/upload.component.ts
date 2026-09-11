@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DocumentService } from '../shared/services/document.service';
+import { DocumentService, UploadResponse } from '../shared/services/document.service';
 import { Subscription, interval } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
@@ -8,6 +8,14 @@ const MAX_FILE_SIZE_MB = 20;
 const ACCEPTED_TYPES = ['application/pdf', 'text/plain'];
 const ACCEPTED_EXTENSIONS = ['.pdf', '.txt'];
 const POLL_INTERVAL_MS = 2000;
+
+interface QueuedUpload {
+  file: File;
+  documentId: string;
+  status: 'uploading' | 'processing' | 'ready' | 'error';
+  errorMessage: string;
+  pollSub: Subscription | null;
+}
 
 @Component({
   selector: 'app-upload',
@@ -20,12 +28,10 @@ export class UploadComponent implements OnDestroy {
   @Input() sessionId: string = '';
   @Output() documentReady = new EventEmitter<string>();
 
-  selectedFile: File | null = null;
+  selectedFiles: File[] = [];
   status: 'idle' | 'uploading' | 'processing' | 'ready' | 'error' = 'idle';
   errorMessage: string = '';
-  uploadedFilename: string = '';
-
-  private pollSub: Subscription | null = null;
+  queue: QueuedUpload[] = [];
 
   constructor(private documentService: DocumentService) {}
 
@@ -36,71 +42,118 @@ export class UploadComponent implements OnDestroy {
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      this.validateAndSetFile(input.files[0]);
+      const files = Array.from(input.files);
+      const validFiles: File[] = [];
+
+      for (const file of files) {
+        const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+        const isValidType = ACCEPTED_TYPES.includes(file.type) || ACCEPTED_EXTENSIONS.includes(ext);
+        if (!isValidType) {
+          this.errorMessage = `Unsupported file type: ${file.name}. Accepted formats: PDF, TXT.`;
+          continue;
+        }
+        const sizeMB = file.size / (1024 * 1024);
+        if (sizeMB > MAX_FILE_SIZE_MB) {
+          this.errorMessage = `${file.name} exceeds the 20 MB size limit (${sizeMB.toFixed(1)} MB).`;
+          continue;
+        }
+        validFiles.push(file);
+      }
+
+      if (validFiles.length > 0) {
+        this.selectedFiles = [...this.selectedFiles, ...validFiles];
+        this.errorMessage = '';
+      }
     }
   }
 
-  validateAndSetFile(file: File): void {
-    this.errorMessage = '';
-    this.selectedFile = null;
-
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    const isValidType = ACCEPTED_TYPES.includes(file.type) || ACCEPTED_EXTENSIONS.includes(ext);
-    if (!isValidType) {
-      this.errorMessage = 'Unsupported file type. Accepted formats: PDF, TXT.';
-      return;
-    }
-
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_FILE_SIZE_MB) {
-      this.errorMessage = `File exceeds the 20 MB size limit (${sizeMB.toFixed(1)} MB).`;
-      return;
-    }
-
-    this.selectedFile = file;
+  removeFile(index: number): void {
+    this.selectedFiles.splice(index, 1);
   }
 
   onSubmit(): void {
-    if (!this.selectedFile || this.isBusy) return;
+    if (this.selectedFiles.length === 0 || this.isBusy) return;
 
     this.status = 'uploading';
     this.errorMessage = '';
+    this.queue = [];
 
-    this.documentService.uploadFile(this.selectedFile, this.sessionId).subscribe({
-      next: (res) => {
-        this.uploadedFilename = res.filename;
+    const filesToUpload = [...this.selectedFiles];
+    this.selectedFiles = [];
+
+    for (const file of filesToUpload) {
+      const queued: QueuedUpload = {
+        file,
+        documentId: '',
+        status: 'uploading',
+        errorMessage: '',
+        pollSub: null,
+      };
+      this.queue.push(queued);
+      this.uploadNext(queued);
+    }
+  }
+
+  private uploadNext(queued: QueuedUpload): void {
+    queued.status = 'uploading';
+    this.documentService.uploadFile(queued.file, this.sessionId).subscribe({
+      next: (res: UploadResponse) => {
+        queued.documentId = res.document_id;
+        queued.status = 'processing';
         this.status = 'processing';
-        this.startPolling(res.document_id);
+        this.startPolling(queued);
       },
-      error: (err) => {
-        this.status = 'error';
-        this.errorMessage = err?.error?.error || 'Upload failed. Please try again.';
+      error: () => {
+        queued.status = 'error';
+        queued.errorMessage = `Upload failed: ${queued.file.name}`;
+        this.checkQueueComplete();
       }
     });
   }
 
-  private startPolling(documentId: string): void {
-    this.pollSub = interval(POLL_INTERVAL_MS).pipe(
-      switchMap(() => this.documentService.getStatus(documentId)),
-      takeWhile((res) => res.status === 'pending', true)
+  private startPolling(queued: QueuedUpload): void {
+    queued.pollSub = interval(POLL_INTERVAL_MS).pipe(
+      switchMap(() => this.documentService.getStatus(queued.documentId)),
+      takeWhile((res) => res.status === 'pending' || res.status === 'processing', true)
     ).subscribe({
       next: (res) => {
         if (res.status === 'ready') {
-          this.status = 'ready';
-          this.documentReady.emit(documentId);
+          queued.status = 'ready';
+          this.documentReady.emit(queued.documentId);
+          this.checkQueueComplete();
         } else if (res.status === 'error') {
-          this.status = 'error';
-          this.errorMessage = res.error_message || 'Document processing failed.';
+          queued.status = 'error';
+          queued.errorMessage = res.error_message || `Processing failed: ${queued.file.name}`;
+          this.checkQueueComplete();
         }
       },
       error: () => {
-        this.status = 'error';
-        this.errorMessage = 'Failed to retrieve document status.';
+        queued.status = 'error';
+        queued.errorMessage = `Failed to check status: ${queued.file.name}`;
+        this.checkQueueComplete();
       }
     });
   }
 
+  private checkQueueComplete(): void {
+    const allDone = this.queue.every(
+      (q) => q.status === 'ready' || q.status === 'error'
+    );
+    if (allDone) {
+      const hasReady = this.queue.some((q) => q.status === 'ready');
+      const hasError = this.queue.some((q) => q.status === 'error');
+      if (hasReady) {
+        this.status = 'ready';
+      } else if (hasError) {
+        this.status = 'error';
+        this.errorMessage = 'All uploads failed. Please try again.';
+      } else {
+        this.status = 'idle';
+      }
+    }
+  }
+
   ngOnDestroy(): void {
-    this.pollSub?.unsubscribe();
+    this.queue.forEach((q) => q.pollSub?.unsubscribe());
   }
 }

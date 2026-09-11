@@ -70,51 +70,51 @@ def cache_embedding(query_text: str, embedding: list, ttl: int = 3600) -> None:
 def get_cached_response(query_text: str, chunk_ids: list) -> Optional[tuple]:
     """
     Retrieve cached LLM response.
-    
+
     Args:
         query_text: The raw query text.
         chunk_ids: List of chunk IDs that were retrieved.
-        
+
     Returns:
-        Tuple of (answer, sources) or None if not found/Redis unavailable.
+        Tuple of (answer, sources, citations) or None if not found/Redis unavailable.
     """
     client = _get_redis_client()
     if not client:
         return None
-    
+
     try:
-        # Create composite key from query + chunk IDs
         composite = query_text + "||" + "||".join(sorted(chunk_ids))
         key = f"response:{_hash_key(composite)}"
         cached = client.get(key)
         if cached:
             data = json.loads(cached)
-            return data["answer"], data["sources"]
+            return data["answer"], data["sources"], data.get("citations", [])
     except Exception:
         pass
-    
+
     return None
 
 
-def cache_response(query_text: str, chunk_ids: list, answer: str, sources: list, ttl: int = 3600) -> None:
+def cache_response(query_text: str, chunk_ids: list, answer: str, sources: list, citations: list, ttl: int = 3600) -> None:
     """
     Cache LLM response.
-    
+
     Args:
         query_text: The raw query text.
         chunk_ids: List of chunk IDs that were retrieved.
         answer: The generated answer.
         sources: List of source filenames.
+        citations: List of per-chunk citation dicts.
         ttl: Time to live in seconds (default 1 hour).
     """
     client = _get_redis_client()
     if not client:
         return
-    
+
     try:
         composite = query_text + "||" + "||".join(sorted(chunk_ids))
         key = f"response:{_hash_key(composite)}"
-        data = {"answer": answer, "sources": sources}
+        data = {"answer": answer, "sources": sources, "citations": citations}
         client.setex(key, ttl, json.dumps(data))
     except Exception:
         pass

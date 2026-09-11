@@ -6,6 +6,12 @@ import { environment } from '../../../environments/environment';
 export interface QueryResponse {
   answer: string;
   sources: string[];
+  citations?: Array<{
+    source: string;
+    doc_id?: string;
+    chunk_id?: string;
+    chunk_index?: number;
+  }>;
   cached?: boolean;
   cache_details?: {
     embedding_cached: boolean;

@@ -7,13 +7,25 @@
     <div class="msg__avatar msg__avatar--ai">AI</div>
     <div class="msg__bubble msg__bubble--ai">
       {{ answer }}
-      <div *ngIf="sources && sources.length > 0" class="msg__sources">
-        <div class="msg__sources-label">Sources:</div>
-        <div class="msg__sources-list">
-          <span *ngFor="let source of sources; let last = last" class="msg__source">
-            {{ source }}<span *ngIf="!last">, </span>
-          </span>
-        </div>
+      <div *ngIf="(sources && sources.length > 0) || (citations && citations.length > 0)" class="msg__sources">
+        @if (sources && sources.length > 0) {
+          <div class="msg__sources-label">Sources:</div>
+          <div class="msg__sources-list">
+            @for (source of sources; track $index; let last = $last) {
+              <span class="msg__source">{{ source }}<span *ngIf="!last">, </span></span>
+            }
+          </div>
+        }
+        @if (citations && citations.length > 1) {
+          <div class="msg__citations-detail">
+            @for (cite of citations; track cite.chunk_id; let last = $last) {
+              <div class="msg__citation">
+                <span class="msg__citation-source">{{ cite.source }}</span>
+                <span class="msg__citation-chunk">chunk {{ cite.chunk_index }}</span>
+              </div>
+            }
+          </div>
+        }
       </div>
       <div *ngIf="cached" class="msg__cache-badge">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

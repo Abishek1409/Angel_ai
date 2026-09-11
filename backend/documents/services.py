@@ -1,17 +1,24 @@
 import os
 import threading
-import fitz  # PyMuPDF
-from google import genai
-from google.genai import types
+import math
 import chromadb
+import fitz  # PyMuPDF
+import cohere
 from django.conf import settings
 
 # Persistent ChromaDB stored on disk so data survives across requests
 _CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
+_CHUNK_SIZE_CHARS = 500 * 4
+_OVERLAP_CHARS = 50 * 4
+_COHERE_EMBED_BATCH = 50
 
 
 def _get_chroma_client():
     return chromadb.PersistentClient(path=_CHROMA_PATH)
+
+
+def _get_cohere_client():
+    return cohere.Client(settings.COHERE_API_KEY)
 
 
 def extract_text(file_path: str, filename: str) -> str:
@@ -88,7 +95,7 @@ def chunk_text(text: str) -> list[str]:
 
 def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_date: str) -> None:
     """
-    Generate embeddings for each chunk via Gemini and store them in a shared
+    Generate embeddings for each chunk via Cohere and store them in a shared
     ChromaDB collection 'all_documents' with metadata tagging.
 
     Args:
@@ -100,26 +107,25 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
     Raises:
         RuntimeError: If embedding or storage fails.
     """
-    client = genai.Client(
-        api_key=settings.GEMINI_API_KEY,
-        http_options=types.HttpOptions(api_version="v1beta"),
-    )
+    if not chunks:
+        return
 
     try:
-        embeddings = [
-            client.models.embed_content(
-                model="gemini-embedding-001",
-                contents=chunk,
-                config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-            ).embeddings[0].values
-            for chunk in chunks
-        ]
+        co = _get_cohere_client()
+        embeddings: list[list[float]] = []
+        for i in range(0, len(chunks), _COHERE_EMBED_BATCH):
+            batch = chunks[i:i + _COHERE_EMBED_BATCH]
+            response = co.embed(
+                texts=batch,
+                model="embed-english-v3.0",
+                input_type="search_document",
+            )
+            embeddings.extend(response.embeddings)
     except Exception as e:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
     try:
         chroma = _get_chroma_client()
-        # Use a shared collection for all documents
         collection = chroma.get_or_create_collection(name="all_documents")
         collection.upsert(
             ids=[f"{document_id}_chunk_{i}" for i in range(len(chunks))],
@@ -129,7 +135,7 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
                 "source": filename,
                 "doc_id": document_id,
                 "upload_date": upload_date,
-                "chunk_index": i
+                "chunk_index": i,
             } for i in range(len(chunks))],
         )
     except Exception as e:

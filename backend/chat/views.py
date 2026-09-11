@@ -40,13 +40,13 @@ def query(request):
 
     try:
         chunks, metadatas, chunk_ids, embedding_cached = retrieve_chunks(question, document_id=document_id)
-        answer, sources, response_cached = generate_answer(question, chunks, metadatas, chunk_ids)
+        answer, sources, citations, response_cached = generate_answer(question, chunks, metadatas, chunk_ids)
     except RuntimeError as e:
         return JsonResponse({"error": str(e)}, status=502)
 
     # Persist to database
     ChatMessage.objects.create(
-        document_id=document_id if document_id else "multi",  # Use 'multi' for cross-document queries
+        document_id=document_id if document_id else "multi",
         session_id=session_id,
         question=question,
         answer=answer,
@@ -55,12 +55,13 @@ def query(request):
     return JsonResponse({
         "answer": answer,
         "sources": sources,
-        "cached": response_cached or embedding_cached,  # True if either was cached
+        "citations": citations,
+        "cached": response_cached or embedding_cached,
         "cache_details": {
             "embedding_cached": embedding_cached,
-            "response_cached": response_cached
+            "response_cached": response_cached,
         },
-        "chunks": chunks  # For debugging
+        "chunks": chunks,
     })
 
 

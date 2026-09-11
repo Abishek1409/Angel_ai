@@ -8,6 +8,12 @@ export interface Message {
   question: string;
   answer: string;
   sources?: string[];
+  citations?: Array<{
+    source: string;
+    doc_id?: string;
+    chunk_id?: string;
+    chunk_index?: number;
+  }>;
   cached?: boolean;
 }
 
@@ -59,11 +65,12 @@ export class ChatComponent implements OnInit {
 
     this.chatService.sendQuestion(this.documentId || null, this.sessionId, q).subscribe({
       next: (res) => {
-        this.conversation.push({ 
-          question: q, 
+        this.conversation.push({
+          question: q,
           answer: res.answer,
           sources: res.sources,
-          cached: res.cached
+          citations: res.citations,
+          cached: res.cached,
         });
         this.question = '';
         this.isLoading = false;
