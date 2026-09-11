@@ -16,9 +16,9 @@
             }
           </div>
         }
-        @if (citations && citations.length > 1) {
+        @if (citations && citations.length > 0) {
           <div class="msg__citations-detail">
-            @for (cite of citations; track cite.chunk_id; let last = $last) {
+            @for (cite of citations; track $index) {
               <div class="msg__citation">
                 <span class="msg__citation-source">{{ cite.source }}</span>
                 <span class="msg__citation-chunk">chunk {{ cite.chunk_index }}</span>

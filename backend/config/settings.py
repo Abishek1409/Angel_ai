@@ -70,6 +70,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 # Gemini API (for embeddings - free tier available)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_EMBEDDING_MODEL = os.environ.get(
+    "GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001"
+)
 
 # Groq API (for LLM chat - free and fast)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")

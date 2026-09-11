@@ -43,9 +43,10 @@ export class ChatService {
     return this.http.post<QueryResponse>(`${this.apiUrl}/query/`, body);
   }
 
-  getHistory(documentId: string, sessionId: string): Observable<{ messages: HistoryMessage[] }> {
+  getHistory(documentId: string | null, sessionId: string): Observable<{ messages: HistoryMessage[] }> {
+    const historyDocumentId = documentId || 'multi';
     return this.http.get<{ messages: HistoryMessage[] }>(
-      `${this.apiUrl}/history/${documentId}/?session_id=${sessionId}`
+      `${this.apiUrl}/history/${historyDocumentId}/?session_id=${sessionId}`
     );
   }
 }

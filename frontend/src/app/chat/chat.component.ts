@@ -25,7 +25,7 @@ export interface Message {
   styleUrl: './chat.component.scss'
 })
 export class ChatComponent implements OnInit {
-  @Input() documentId: string = '';
+  @Input() documentId: string | null = null;
   @Input() sessionId: string = '';
   @Output() newDocument = new EventEmitter<void>();
 

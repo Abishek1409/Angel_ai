@@ -58,7 +58,7 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         try:
             genai = _get_gemini_client()
             result = genai.embed_content(
-                model='models/text-embedding-004',
+                model=settings.GEMINI_EMBEDDING_MODEL,
                 content=question,
                 task_type="retrieval_query"
             )
@@ -74,11 +74,15 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         return [], [], [], False
 
     try:
-        where_filter = {"doc_id": document_id} if document_id else None
+        collection_size = collection.count()
+        if collection_size == 0:
+            return [], [], [], embedding_cache_hit
+
+        where_filter = {"doc_id": {"$eq": document_id}} if document_id else None
 
         results = collection.query(
             query_embeddings=[question_embedding],
-            n_results=min(top_k, collection.count()),
+            n_results=min(top_k, collection_size),
             where=where_filter,
         )
 

@@ -12,6 +12,7 @@
     @if (showDocumentList) {
       <app-document-list
         [sessionId]="sessionId"
+        [refreshToken]="documentListRefresh"
         (documentSelected)="onDocumentSelected($event)"
         (uploadNew)="onUploadNew()"
       />
@@ -22,7 +23,7 @@
         <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
       } @else if (currentView === 'chat') {
         <app-chat
-          [documentId]="documentId || ''"
+          [documentId]="documentId"
           [sessionId]="sessionId"
           (newDocument)="onNewDocument()"
         />

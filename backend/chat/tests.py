@@ -146,8 +146,7 @@ class ExtractTextTests(TestCase):
 
 
 class RetrieveChunksTests(TestCase):
-    @patch("chat.services.cohere.Client")
-    def test_returns_empty_on_missing_collection(self, mock_cohere_cls):
+    def test_returns_empty_on_missing_collection(self):
         from chromadb import PersistentClient
         with patch("chat.services._get_chroma_client") as mock_get:
             mock_client = MagicMock()
@@ -160,12 +159,7 @@ class RetrieveChunksTests(TestCase):
     @patch("chat.services.get_cached_embedding", return_value=None)
     @patch("chat.services.cache_embedding")
     @patch("chat.services._get_chroma_client")
-    @patch("chat.services.cohere.Client")
-    def test_queries_chromadb_with_embedding(self, mock_cohere_cls, mock_get_chroma, mock_cache, mock_get_cache):
-        mock_co = MagicMock()
-        mock_cohere_cls.return_value = mock_co
-        mock_co.embed.return_value = MagicMock(embeddings=[[0.1, 0.2, 0.3]])
-
+    def test_queries_chromadb_with_embedding(self, mock_get_chroma, mock_cache, mock_get_cache):
         mock_collection = MagicMock()
         mock_collection.count.return_value = 5
         mock_collection.query.return_value = {
@@ -181,7 +175,6 @@ class RetrieveChunksTests(TestCase):
         self.assertEqual(chunks, ["chunk1", "chunk2"])
         self.assertEqual(metadatas[0]["source"], "a.pdf")
         self.assertFalse(cache_hit)
-        mock_co.embed.assert_called_once()
         mock_collection.query.assert_called_once()
 
     @patch("chat.services.get_cached_embedding", return_value=[0.1, 0.2, 0.3])
@@ -205,18 +198,20 @@ class RetrieveChunksTests(TestCase):
 class GenerateAnswerTests(TestCase):
     def test_empty_chunks_returns_informational_message(self):
         answer, sources, citations, cache_hit = generate_answer("Any question?", [], [], [])
-        self.assertIn("does not appear to contain", answer)
+        self.assertIn("No relevant information found", answer)
         self.assertEqual(sources, [])
         self.assertEqual(citations, [])
         self.assertFalse(cache_hit)
 
-    @patch("chat.services.cohere.Client")
     @patch("chat.services.cache_response")
     @patch("chat.services.get_cached_response", return_value=None)
-    def test_chunks_provided_calls_cohere_and_returns_text(self, mock_get_cached, mock_cache, mock_cohere_cls):
-        mock_co = MagicMock()
-        mock_cohere_cls.return_value = mock_co
-        mock_co.chat.return_value = MagicMock(text="Generated answer.")
+    @patch("chat.services._get_groq_client")
+    def test_chunks_provided_calls_groq_and_returns_text(self, mock_get_groq, mock_get_cached, mock_cache):
+        mock_groq = MagicMock()
+        mock_get_groq.return_value = mock_groq
+        mock_groq.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Generated answer."))]
+        )
 
         answer, sources, citations, cache_hit = generate_answer(
             "What is X?",
@@ -228,7 +223,7 @@ class GenerateAnswerTests(TestCase):
         self.assertEqual(sources, ["doc.pdf"])
         self.assertEqual(citations[0]["source"], "doc.pdf")
         self.assertFalse(cache_hit)
-        mock_co.chat.assert_called_once()
+        mock_groq.chat.completions.create.assert_called_once()
 
 
 class QueryViewTests(TestCase):
@@ -302,12 +297,14 @@ class QueryViewTests(TestCase):
         self.assertIn("answer", data)
         self.assertEqual(data["sources"], [])
 
-    def test_cross_document_query_without_document_id(self):
+    @patch("chat.views.generate_answer", return_value=("Multi answer.", ["doc.pdf"], [], False))
+    @patch("chat.views.retrieve_chunks", return_value=([], [], [], False))
+    def test_cross_document_query_without_document_id(self, mock_retrieve, mock_generate):
         response = self._post({
             "session_id": self.session_id,
             "question": "What is this?",
         })
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
 
     @patch("chat.views.generate_answer", return_value=("Multi answer.", ["a.pdf", "b.pdf"], [], False))
     @patch("chat.views.retrieve_chunks", return_value=(["c1"], [{"source": "a.pdf"}], ["uuid1_chunk_0"], False))

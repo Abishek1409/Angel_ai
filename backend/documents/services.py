@@ -10,7 +10,7 @@ from django.conf import settings
 _CHROMA_PATH = os.path.join(settings.BASE_DIR, "chroma_db")
 _CHUNK_SIZE_CHARS = 500 * 4
 _OVERLAP_CHARS = 50 * 4
-_COHERE_EMBED_BATCH = 50
+_EMBED_BATCH_SIZE = 50
 
 
 def _get_chroma_client():
@@ -122,11 +122,11 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
     try:
         genai = _get_gemini_client()
         embeddings: list[list[float]] = []
-        for i in range(0, len(chunks), _COHERE_EMBED_BATCH):
-            batch = chunks[i:i + _COHERE_EMBED_BATCH]
+        for i in range(0, len(chunks), _EMBED_BATCH_SIZE):
+            batch = chunks[i:i + _EMBED_BATCH_SIZE]
             for chunk in batch:
                 result = genai.embed_content(
-                    model='models/text-embedding-004',
+                    model=settings.GEMINI_EMBEDDING_MODEL,
                     content=chunk,
                     task_type="retrieval_document"
                 )
@@ -193,9 +193,7 @@ def delete_document_from_chromadb(document_id: str) -> None:
         collection = chroma.get_collection(name="all_documents")
         
         # Get all chunk IDs for this document
-        results = collection.get(
-            where={"doc_id": document_id}
-        )
+        results = collection.get(where={"doc_id": {"$eq": document_id}})
         
         if results["ids"]:
             collection.delete(ids=results["ids"])

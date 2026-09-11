@@ -21,6 +21,7 @@ export class App implements OnInit {
   documentId: string | null = null;
   currentView: AppView = 'upload';
   showDocumentList: boolean = false;
+  documentListRefresh: number = 0;
 
   ngOnInit(): void {
     // Restore session from localStorage so refresh keeps state
@@ -45,6 +46,7 @@ export class App implements OnInit {
 
   onDocumentReady(documentId: string): void {
     this.documentId = documentId;
+    this.documentListRefresh += 1;
     localStorage.setItem(DOCUMENT_KEY, documentId);
     this.currentView = 'chat';
     this.showDocumentList = true;

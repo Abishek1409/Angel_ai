@@ -39,6 +39,10 @@ export class UploadComponent implements OnDestroy {
     return this.status === 'uploading' || this.status === 'processing';
   }
 
+  get readyCount(): number {
+    return this.queue.filter((item) => item.status === 'ready').length;
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {

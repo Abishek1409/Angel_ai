@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DocumentService, Document } from '../shared/services/document.service';
 
@@ -9,8 +9,9 @@ import { DocumentService, Document } from '../shared/services/document.service';
   templateUrl: './document-list.component.html',
   styleUrl: './document-list.component.scss'
 })
-export class DocumentListComponent implements OnInit {
+export class DocumentListComponent implements OnInit, OnChanges {
   @Input() sessionId: string = '';
+  @Input() refreshToken: number = 0;
   @Output() documentSelected = new EventEmitter<string | null>();
   @Output() uploadNew = new EventEmitter<void>();
 
@@ -23,6 +24,12 @@ export class DocumentListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadDocuments();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['refreshToken'] && !changes['refreshToken'].firstChange) {
+      this.loadDocuments();
+    }
   }
 
   loadDocuments(): void {
