@@ -206,13 +206,8 @@ class GenerateAnswerTests(TestCase):
 
     @patch("chat.services.cache_response")
     @patch("chat.services.get_cached_response", return_value=None)
-    @patch("chat.services._get_groq_client")
-    def test_chunks_provided_calls_groq_and_returns_text(self, mock_get_groq, mock_get_cached, mock_cache):
-        mock_groq = MagicMock()
-        mock_get_groq.return_value = mock_groq
-        mock_groq.chat.completions.create.return_value = MagicMock(
-            choices=[MagicMock(message=MagicMock(content="Generated answer."))]
-        )
+    @patch("chat.services._generate_gemini_answer", return_value="Generated answer.")
+    def test_chunks_provided_calls_gemini_and_returns_text(self, mock_generate, mock_get_cached, mock_cache):
 
         answer, sources, citations, cache_hit = generate_answer(
             "What is X?",
@@ -224,7 +219,7 @@ class GenerateAnswerTests(TestCase):
         self.assertEqual(sources, ["doc.pdf"])
         self.assertEqual(citations[0]["source"], "doc.pdf")
         self.assertFalse(cache_hit)
-        mock_groq.chat.completions.create.assert_called_once()
+        mock_generate.assert_called_once()
 
 
 class QueryViewTests(TestCase):

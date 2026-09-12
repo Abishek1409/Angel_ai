@@ -11,7 +11,6 @@ psycopg2-binary>=2.9
 dj-database-url>=2.1
 
 # AI and Vector DB - pinned versions for stability (avoid Rust/tokenizers build issues)
-groq==0.11.0
 numpy==1.26.4
 # Chroma 0.4.x uses the legacy PostHog telemetry client and can emit
 # capture() signature errors even when telemetry is disabled.

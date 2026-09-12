@@ -1,25 +1,37 @@
 import os
 import logging
-from groq import Groq
+import requests
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
-from documents.services import _embed_text
+from documents.services import _embed_text, _get_gemini_api_key
 from config.chroma import get_chroma_client
 
 _get_chroma_client = get_chroma_client
 logger = logging.getLogger(__name__)
 
 
-def _get_groq_client():
-    """Groq client for LLM chat."""
-    api_key = settings.GROQ_API_KEY
-    if not api_key or api_key == "gsk-your-groq-api-key-here":
-        raise ValueError(
-            "Groq API key is not configured. Please set GROQ_API_KEY in your .env file "
-            "or environment variables. Get a free API key at https://console.groq.com/"
-        )
-    logger.info("Using Groq model: %s", settings.GROQ_MODEL)
-    return Groq(api_key=api_key)
+def _generate_gemini_answer(prompt: str) -> str:
+    """Generate an answer with Gemini using the same key as embeddings."""
+    model = settings.GEMINI_CHAT_MODEL.removeprefix("models/")
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        params={"key": _get_gemini_api_key()},
+        json={
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1024},
+        },
+        timeout=90,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Gemini chat API returned {response.status_code}: {response.text}")
+
+    candidates = response.json().get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini chat API returned no answer candidates")
+    return "".join(
+        part.get("text", "")
+        for part in candidates[0].get("content", {}).get("parts", [])
+    ).strip()
 
 
 def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> tuple[list[str], list[dict], list[str], bool]:
@@ -78,7 +90,7 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
 
 def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chunk_ids: list[str]) -> tuple[str, list[str], list[dict], bool]:
     """
-    Build a prompt from retrieved chunks and generate an answer via Groq.
+    Build a prompt from retrieved chunks and generate an answer via Gemini.
 
     Args:
         question: The user's natural language question.
@@ -113,17 +125,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     )
 
     try:
-        client = _get_groq_client()
-        response = client.chat.completions.create(
-            model=settings.GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant. Answer questions using only the provided context."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=1024,
-        )
-        answer = response.choices[0].message.content
+        answer = _generate_gemini_answer(prompt)
 
         sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
         citations = [
@@ -140,10 +142,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
 
         return answer, sources, citations, False
     except Exception as e:
-        response = getattr(e, "response", None)
-        response_body = getattr(response, "text", "") if response else ""
-        details = f" {response_body}" if response_body else ""
         raise RuntimeError(
-            f"Failed to generate answer with Groq using model '{settings.GROQ_MODEL}': "
-            f"{str(e)}.{details} Error type: {type(e).__name__}"
+            f"Failed to generate answer with Gemini using model '{settings.GEMINI_CHAT_MODEL}': "
+            f"{str(e)} Error type: {type(e).__name__}"
         ) from e
