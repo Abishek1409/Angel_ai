@@ -76,10 +76,8 @@ GEMINI_EMBEDDING_MODEL = os.environ.get(
 
 # Groq API (for LLM chat - free and fast)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-_configured_groq_model = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
-GROQ_MODEL = {
-    "llama-3.3-70b-versatile": "llama-3.1-8b-instant",
-}.get(_configured_groq_model, _configured_groq_model)
+# Keep the model fixed so a stale deployment variable cannot select a retired ID.
+GROQ_MODEL = "llama-3.1-8b-instant"
 
 # Redis cache
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

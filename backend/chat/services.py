@@ -1,4 +1,5 @@
 import os
+import logging
 from groq import Groq
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
@@ -6,6 +7,7 @@ from documents.services import _embed_text
 from config.chroma import get_chroma_client
 
 _get_chroma_client = get_chroma_client
+logger = logging.getLogger(__name__)
 
 
 def _get_groq_client():
@@ -16,6 +18,7 @@ def _get_groq_client():
             "Groq API key is not configured. Please set GROQ_API_KEY in your .env file "
             "or environment variables. Get a free API key at https://console.groq.com/"
         )
+    logger.info("Using Groq model: %s", settings.GROQ_MODEL)
     return Groq(api_key=api_key)
 
 
@@ -112,7 +115,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     try:
         client = _get_groq_client()
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=settings.GROQ_MODEL,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant. Answer questions using only the provided context."},
                 {"role": "user", "content": prompt}
@@ -137,4 +140,10 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
 
         return answer, sources, citations, False
     except Exception as e:
-        raise RuntimeError(f"Failed to generate answer with Groq: {str(e)}. Error type: {type(e).__name__}") from e
+        response = getattr(e, "response", None)
+        response_body = getattr(response, "text", "") if response else ""
+        details = f" {response_body}" if response_body else ""
+        raise RuntimeError(
+            f"Failed to generate answer with Groq using model '{settings.GROQ_MODEL}': "
+            f"{str(e)}.{details} Error type: {type(e).__name__}"
+        ) from e
