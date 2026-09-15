@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "tesseract", "poppler_utils"]
 
 [phases.install]
 cmds = ["pip install --no-cache-dir --upgrade -r requirements.txt"]
 
 [phases.build]
-cmds = ["python manage.py migrate"]
+cmds = ["command -v tesseract", "tesseract --version", "command -v pdftoppm", "python manage.py migrate"]
 
 [start]
 cmd = "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1"
