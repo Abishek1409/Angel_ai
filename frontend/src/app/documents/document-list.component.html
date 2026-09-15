@@ -58,7 +58,7 @@
       <div class="doc-item__content">
         <div class="doc-item__name">{{ doc.filename }}</div>
         <div class="doc-item__meta">
-          <span [class]="getStatusClass(doc.status)">{{ doc.status }}</span>
+          <span [class]="getStatusClass(doc.status)">{{ getStatusLabel(doc.status) }}</span>
           <span *ngIf="doc.error_message" class="doc-item__error" [title]="doc.error_message">
             Error
           </span>

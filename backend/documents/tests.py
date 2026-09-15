@@ -1,7 +1,11 @@
 import io
 import os
+import sys
 import tempfile
 import uuid
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+import fitz
 from django.test import TestCase, Client
 from django.urls import reverse
 
@@ -140,3 +144,25 @@ class ExtractTextTests(TestCase):
     def test_missing_txt_file_raises_runtime_error(self):
         with self.assertRaises(RuntimeError):
             extract_text("/nonexistent/path/file.txt", "file.txt")
+
+    def test_scanned_pdf_falls_back_to_ocr(self):
+        mock_convert = Mock(return_value=[object()])
+        mock_ocr = Mock(return_value="Scanned document text")
+        fd, path = tempfile.mkstemp(suffix=".pdf")
+        os.close(fd)
+        pdf = fitz.open()
+        pdf.new_page()
+        pdf.save(path)
+        pdf.close()
+        try:
+            fake_modules = {
+                "pdf2image": SimpleNamespace(convert_from_path=mock_convert),
+                "pytesseract": SimpleNamespace(image_to_string=mock_ocr),
+            }
+            with patch.dict(sys.modules, fake_modules):
+                result = extract_text(path, "scanned.pdf")
+            self.assertEqual(result, "Scanned document text")
+            mock_convert.assert_called_once()
+            mock_ocr.assert_called_once()
+        finally:
+            os.unlink(path)

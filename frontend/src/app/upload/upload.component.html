@@ -53,7 +53,7 @@
           <div class="queue-item" [class.queue-item--ready]="item.status === 'ready'" [class.queue-item--error]="item.status === 'error'">
             <span class="queue-item__name">{{ item.file.name }}</span>
             <span class="queue-item__status" [class.queue-item__status--ready]="item.status === 'ready'" [class.queue-item__status--error]="item.status === 'error'">
-              {{ item.status === 'uploading' ? 'Uploading…' : item.status === 'processing' ? 'Processing…' : item.status === 'ready' ? 'Ready' : 'Error' }}
+              {{ item.status === 'uploading' ? 'Uploading…' : item.status === 'processing_ocr' ? 'Processing (OCR)…' : item.status === 'processing' ? 'Processing…' : item.status === 'ready' ? 'Ready' : 'Error' }}
             </span>
           </div>
         }
@@ -69,7 +69,7 @@
     >
       <span class="upload-btn__spinner" *ngIf="isBusy"></span>
       <span *ngIf="!isBusy">Analyze {{ selectedFiles.length > 0 ? selectedFiles.length + ' document' + (selectedFiles.length > 1 ? 's' : '') : 'document' }}</span>
-      <span *ngIf="isBusy">{{ status === 'uploading' ? 'Uploading…' : 'Processing…' }}</span>
+      <span *ngIf="isBusy">{{ status === 'uploading' ? 'Uploading…' : status === 'processing_ocr' ? 'Processing (OCR)…' : 'Processing…' }}</span>
     </button>
 
     <p *ngIf="status === 'ready' && queue.length > 0" class="upload-success" role="status">

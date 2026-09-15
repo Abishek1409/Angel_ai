@@ -18,6 +18,8 @@ chromadb==1.5.9
 
 # Document processing
 pymupdf==1.24.10
+pytesseract>=0.3.13
+pdf2image>=1.17.0
 
 # Caching
 redis==5.0.1

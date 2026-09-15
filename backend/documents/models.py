@@ -5,6 +5,7 @@ from django.db import models
 class Document(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
+        ("processing_ocr", "Processing (OCR)"),
         ("ready", "Ready"),
         ("error", "Error"),
     ]

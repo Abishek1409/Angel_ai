@@ -12,6 +12,7 @@ from config.chroma import get_chroma_client
 _CHUNK_SIZE_CHARS = 500 * 4
 _OVERLAP_CHARS = 50 * 4
 _EMBED_BATCH_SIZE = 50
+_OCR_MAX_PAGES = 30
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +44,7 @@ def _embed_text(text: str, task_type: str) -> list[float]:
     return response.json()["embedding"]["values"]
 
 
-def extract_text(file_path: str, filename: str) -> str:
+def extract_text(file_path: str, filename: str, status_callback=None) -> str:
     """
     Extract text from a PDF or TXT file.
 
@@ -71,14 +72,31 @@ def extract_text(file_path: str, filename: str) -> str:
         try:
             doc = fitz.open(file_path)
             pages = [page.get_text() for page in doc]
+            page_count = len(doc)
             doc.close()
             text = "\n".join(pages)
-            if not text.strip():
+            if len(text.strip()) >= 20:
+                return text
+
+            logger.info("Falling back to OCR for %s", filename)
+            if status_callback:
+                status_callback()
+
+            from pdf2image import convert_from_path
+            import pytesseract
+
+            images = convert_from_path(
+                file_path,
+                first_page=1,
+                last_page=min(page_count, _OCR_MAX_PAGES),
+            )
+            ocr_text = "\n".join(pytesseract.image_to_string(image) for image in images)
+            if not ocr_text.strip():
                 raise RuntimeError(
                     f"No readable text could be extracted from PDF '{filename}'. "
                     "The file may be scanned or image-based."
                 )
-            return text
+            return ocr_text
         except RuntimeError:
             raise
         except Exception as e:
@@ -170,7 +188,12 @@ def process_document(document_id: str) -> None:
     close_old_connections()
     try:
         doc = Document.objects.get(id=document_id)
-        text = extract_text(doc.file_path, doc.filename)
+
+        def mark_ocr_processing():
+            doc.status = "processing_ocr"
+            doc.save(update_fields=["status"])
+
+        text = extract_text(doc.file_path, doc.filename, status_callback=mark_ocr_processing)
         chunks = chunk_text(text)
         embed_and_store(str(doc.id), chunks, doc.filename, doc.created_at.isoformat())
         doc.status = "ready"

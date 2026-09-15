@@ -12,7 +12,7 @@ const POLL_INTERVAL_MS = 2000;
 interface QueuedUpload {
   file: File;
   documentId: string;
-  status: 'uploading' | 'processing' | 'ready' | 'error';
+  status: 'uploading' | 'processing' | 'processing_ocr' | 'ready' | 'error';
   errorMessage: string;
   pollSub: Subscription | null;
 }
@@ -29,14 +29,14 @@ export class UploadComponent implements OnDestroy {
   @Output() documentReady = new EventEmitter<string>();
 
   selectedFiles: File[] = [];
-  status: 'idle' | 'uploading' | 'processing' | 'ready' | 'error' = 'idle';
+  status: 'idle' | 'uploading' | 'processing' | 'processing_ocr' | 'ready' | 'error' = 'idle';
   errorMessage: string = '';
   queue: QueuedUpload[] = [];
 
   constructor(private documentService: DocumentService) {}
 
   get isBusy(): boolean {
-    return this.status === 'uploading' || this.status === 'processing';
+    return this.status === 'uploading' || this.status === 'processing' || this.status === 'processing_ocr';
   }
 
   get readyCount(): number {
@@ -118,10 +118,16 @@ export class UploadComponent implements OnDestroy {
   private startPolling(queued: QueuedUpload): void {
     queued.pollSub = interval(POLL_INTERVAL_MS).pipe(
       switchMap(() => this.documentService.getStatus(queued.documentId)),
-      takeWhile((res) => res.status === 'pending' || res.status === 'processing', true)
+      takeWhile((res) => res.status === 'pending' || res.status === 'processing' || res.status === 'processing_ocr', true)
     ).subscribe({
       next: (res) => {
-        if (res.status === 'ready') {
+        if (res.status === 'processing_ocr') {
+          queued.status = 'processing_ocr';
+          this.status = 'processing_ocr';
+        } else if (res.status === 'processing' || res.status === 'pending') {
+          queued.status = 'processing';
+          this.status = 'processing';
+        } else if (res.status === 'ready') {
           queued.status = 'ready';
           this.documentReady.emit(queued.documentId);
           this.checkQueueComplete();

@@ -80,8 +80,13 @@ export class DocumentListComponent implements OnInit, OnChanges {
       case 'ready': return 'status-ready';
       case 'pending': return 'status-pending';
       case 'processing': return 'status-processing';
+      case 'processing_ocr': return 'status-processing';
       case 'error': return 'status-error';
       default: return '';
     }
+  }
+
+  getStatusLabel(status: string): string {
+    return status === 'processing_ocr' ? 'Processing (OCR)…' : status;
   }
 }
