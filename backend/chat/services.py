@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 import requests
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
@@ -8,6 +9,22 @@ from config.chroma import get_chroma_client
 
 _get_chroma_client = get_chroma_client
 logger = logging.getLogger(__name__)
+
+
+def _clean_answer_text(text: str) -> str:
+    """Strip markdown emphasis and decorative bullet symbols from model output."""
+    if not text:
+        return ""
+
+    cleaned = text.strip()
+    cleaned = re.sub(r"\*\*(.+?)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", cleaned)
+    cleaned = re.sub(r"(?m)^\s*[-*+•\u2022\u25E6]\s*", "", cleaned)
+    cleaned = re.sub(r"(?m)^\s*#+\s*", "", cleaned)
+    cleaned = re.sub(r"[\u2605\u2606\u2730\u2731\u2022\u25CF\u25AA\u25E6]+", "", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    return cleaned.strip()
 
 
 def _generate_gemini_answer(prompt: str) -> str:
@@ -125,15 +142,18 @@ def generate_answer(
 
     context = "\n\n---\n\n".join(chunks)
     prompt = (
-        "You are a helpful assistant. Answer the question below using only the provided context.\n\n"
+        "You are a careful assistant. Answer using only the provided context. "
+        "If the context does not contain enough information, say so plainly. "
+        "Do not use markdown formatting, bold text, bullets, stars, or special symbols. "
+        "Write in plain, readable sentences.\n\n"
         f"{conversation_history}"
         f"Context:\n{context}\n\n"
         f"Question: {question}\n\n"
-        "Answer:"
+        "Answer in plain English without markdown or bullets:"
     )
 
     try:
-        answer = _generate_gemini_answer(prompt)
+        answer = _clean_answer_text(_generate_gemini_answer(prompt))
 
         sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
         citations = [
