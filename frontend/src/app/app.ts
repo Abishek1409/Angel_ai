@@ -79,9 +79,13 @@ export class App implements OnInit {
 
   onSessionSelected(session: ChatSession): void {
     this.sessionId = session.id;
-    this.documentId = session.document_id;
+    this.documentId = session.document_id ?? null;
     localStorage.setItem(SESSION_KEY, session.id);
-    if (session.document_id) localStorage.setItem(DOCUMENT_KEY, session.document_id);
+    if (this.documentId) {
+      localStorage.setItem(DOCUMENT_KEY, this.documentId);
+    } else {
+      localStorage.removeItem(DOCUMENT_KEY);
+    }
     this.currentView = 'chat';
     this.showDocumentList = true;
   }
@@ -92,7 +96,7 @@ export class App implements OnInit {
     localStorage.setItem(SESSION_KEY, this.sessionId);
     localStorage.removeItem(DOCUMENT_KEY);
     this.currentView = 'upload';
-    this.showDocumentList = true;
+    this.showDocumentList = false;
     this.sessionHistoryRefresh += 1;
     this.documentListRefresh += 1;
   }

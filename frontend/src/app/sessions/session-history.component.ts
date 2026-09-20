@@ -35,11 +35,12 @@ export class SessionHistoryComponent implements OnChanges {
     event.stopPropagation();
     this.chatService.deleteSession(session.id).subscribe({
       next: () => {
+        const wasSelected = this.selectedId === session.id;
         this.sessions = this.sessions.filter(item => item.id !== session.id);
-        if (this.selectedId === session.id) {
+        if (wasSelected) {
           this.selectedId = null;
-          this.sessionDeleted.emit();
         }
+        this.sessionDeleted.emit();
       }
     });
   }
