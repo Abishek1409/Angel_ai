@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -7,6 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 from documents.models import Document
+from documents.services import delete_document_from_chromadb
 from .models import ChatMessage, ChatSession
 from .services import retrieve_chunks, generate_answer
 
@@ -154,7 +156,20 @@ def session_messages(request, session_id):
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_session(request, session_id):
-    deleted, _ = ChatSession.objects.filter(id=session_id, user=request.user).delete()
-    if not deleted:
+    try:
+        session = ChatSession.objects.get(id=session_id, user=request.user)
+    except ChatSession.DoesNotExist:
         return JsonResponse({"error": "Session not found."}, status=404)
+
+    document = session.document
+    if document is not None:
+        try:
+            delete_document_from_chromadb(str(document.id))
+            if document.file_path and os.path.exists(document.file_path):
+                os.remove(document.file_path)
+        except Exception:
+            pass
+        document.delete()
+
+    session.delete()
     return JsonResponse({"message": "Session deleted."})

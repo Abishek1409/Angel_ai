@@ -15,7 +15,11 @@
   </header>
 
   <main class="app-main" [class.app-main--with-sidebar]="showDocumentList">
-    <app-session-history [refreshToken]="sessionHistoryRefresh" (sessionSelected)="onSessionSelected($event)" />
+    <app-session-history
+      [refreshToken]="sessionHistoryRefresh"
+      (sessionSelected)="onSessionSelected($event)"
+      (sessionDeleted)="onSessionDeleted()"
+    />
     @if (showDocumentList) {
       <app-document-list
         [sessionId]="sessionId"

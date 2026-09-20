@@ -82,6 +82,28 @@ class AuthenticatedHistoryTests(APITestCase):
     @patch("chat.views.retrieve_chunks", return_value=([], [], [], False))
     @patch("chat.views.generate_answer", return_value=("Persistent answer", [], [], False))
     @patch("documents.views.process_document")
+    def test_delete_session_also_removes_linked_document(self, process_document, generate_answer, retrieve_chunks):
+        doc = Document.objects.create(
+            user=self.user,
+            session_id=uuid.uuid4(),
+            filename="session-doc.txt",
+            file_path="/tmp/session-doc.txt",
+            status="ready",
+        )
+        session = ChatSession.objects.create(user=self.user, document=doc, title="Delete me")
+
+        with patch("chat.views.delete_document_from_chromadb") as delete_from_chroma, \
+             patch("chat.views.os.path.exists", return_value=False):
+            response = self.client.delete(f"/api/sessions/{session.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ChatSession.objects.filter(id=session.id).exists())
+        self.assertFalse(Document.objects.filter(id=doc.id).exists())
+        delete_from_chroma.assert_called_once_with(str(doc.id))
+
+    @patch("chat.views.retrieve_chunks", return_value=([], [], [], False))
+    @patch("chat.views.generate_answer", return_value=("Persistent answer", [], [], False))
+    @patch("documents.views.process_document")
     def test_full_auth_upload_query_logout_login_flow(self, process_document, generate_answer, retrieve_chunks):
         username = "flow-user"
         password = "strong-password"

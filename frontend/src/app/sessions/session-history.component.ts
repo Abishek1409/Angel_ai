@@ -12,6 +12,7 @@ import { ChatService, ChatSession } from '../shared/services/chat.service';
 export class SessionHistoryComponent implements OnChanges {
   @Input() refreshToken = 0;
   @Output() sessionSelected = new EventEmitter<ChatSession>();
+  @Output() sessionDeleted = new EventEmitter<void>();
   sessions: ChatSession[] = [];
   selectedId: string | null = null;
 
@@ -35,7 +36,10 @@ export class SessionHistoryComponent implements OnChanges {
     this.chatService.deleteSession(session.id).subscribe({
       next: () => {
         this.sessions = this.sessions.filter(item => item.id !== session.id);
-        if (this.selectedId === session.id) this.selectedId = null;
+        if (this.selectedId === session.id) {
+          this.selectedId = null;
+          this.sessionDeleted.emit();
+        }
       }
     });
   }

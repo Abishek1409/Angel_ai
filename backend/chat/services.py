@@ -143,7 +143,9 @@ def generate_answer(
     context = "\n\n---\n\n".join(chunks)
     prompt = (
         "You are a careful assistant. Answer using only the provided context. "
-        "If the context does not contain enough information, say so plainly. "
+        "Use the information in the context to answer the question directly. "
+        "If the context is incomplete or does not support the answer, say that plainly instead of guessing. "
+        "Do not invent facts, do not mention missing context as a workaround, and do not add unsupported claims. "
         "Do not use markdown formatting, bold text, bullets, stars, or special symbols. "
         "Write in plain, readable sentences.\n\n"
         f"{conversation_history}"

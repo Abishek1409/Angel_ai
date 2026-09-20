@@ -86,6 +86,17 @@ export class App implements OnInit {
     this.showDocumentList = true;
   }
 
+  onSessionDeleted(): void {
+    this.sessionId = crypto.randomUUID();
+    this.documentId = null;
+    localStorage.setItem(SESSION_KEY, this.sessionId);
+    localStorage.removeItem(DOCUMENT_KEY);
+    this.currentView = 'upload';
+    this.showDocumentList = true;
+    this.sessionHistoryRefresh += 1;
+    this.documentListRefresh += 1;
+  }
+
   onDocumentSelected(documentId: string | null): void {
     this.documentId = documentId;
     if (documentId) {
