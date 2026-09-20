@@ -67,7 +67,7 @@ def cache_embedding(query_text: str, embedding: list, ttl: int = 3600) -> None:
         pass
 
 
-def get_cached_response(query_text: str, chunk_ids: list) -> Optional[tuple]:
+def get_cached_response(query_text: str, chunk_ids: list, cache_scope: str = "") -> Optional[tuple]:
     """
     Retrieve cached LLM response.
 
@@ -83,7 +83,7 @@ def get_cached_response(query_text: str, chunk_ids: list) -> Optional[tuple]:
         return None
 
     try:
-        composite = query_text + "||" + "||".join(sorted(chunk_ids))
+        composite = cache_scope + "||" + query_text + "||" + "||".join(sorted(chunk_ids))
         key = f"response:{_hash_key(composite)}"
         cached = client.get(key)
         if cached:
@@ -95,7 +95,7 @@ def get_cached_response(query_text: str, chunk_ids: list) -> Optional[tuple]:
     return None
 
 
-def cache_response(query_text: str, chunk_ids: list, answer: str, sources: list, citations: list, ttl: int = 3600) -> None:
+def cache_response(query_text: str, chunk_ids: list, answer: str, sources: list, citations: list, ttl: int = 3600, cache_scope: str = "") -> None:
     """
     Cache LLM response.
 
@@ -112,7 +112,7 @@ def cache_response(query_text: str, chunk_ids: list, answer: str, sources: list,
         return
 
     try:
-        composite = query_text + "||" + "||".join(sorted(chunk_ids))
+        composite = cache_scope + "||" + query_text + "||" + "||".join(sorted(chunk_ids))
         key = f"response:{_hash_key(composite)}"
         data = {"answer": answer, "sources": sources, "citations": citations}
         client.setex(key, ttl, json.dumps(data))

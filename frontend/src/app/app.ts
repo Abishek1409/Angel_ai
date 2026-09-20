@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { UploadComponent } from './upload/upload.component';
 import { ChatComponent } from './chat/chat.component';
 import { DocumentListComponent } from './documents/document-list.component';
+import { AuthComponent } from './auth/auth.component';
+import { AuthService } from './auth/auth.service';
+import { SessionHistoryComponent } from './sessions/session-history.component';
+import { ChatSession } from './shared/services/chat.service';
 
 const SESSION_KEY = 'angelai_session';
 const DOCUMENT_KEY = 'angelai_document';
@@ -12,7 +16,7 @@ type AppView = 'upload' | 'chat' | 'documents';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, UploadComponent, ChatComponent, DocumentListComponent],
+  imports: [CommonModule, UploadComponent, ChatComponent, DocumentListComponent, AuthComponent, SessionHistoryComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -22,8 +26,26 @@ export class App implements OnInit {
   currentView: AppView = 'upload';
   showDocumentList: boolean = false;
   documentListRefresh: number = 0;
+  sessionHistoryRefresh = 0;
+  isReady = false;
+
+  constructor(public auth: AuthService) {}
 
   ngOnInit(): void {
+    this.auth.refresh().subscribe({
+      next: () => this.initializeWorkspace(),
+      error: () => {
+        this.auth.clearSession();
+        this.isReady = true;
+      }
+    });
+  }
+
+  logout(): void {
+    this.auth.logout().subscribe({ error: () => this.auth.clearSession() });
+  }
+
+  private initializeWorkspace(): void {
     // Restore session from localStorage so refresh keeps state
     this.sessionId = localStorage.getItem(SESSION_KEY) || crypto.randomUUID();
     localStorage.setItem(SESSION_KEY, this.sessionId);
@@ -42,6 +64,7 @@ export class App implements OnInit {
       this.showDocumentList = true;
       localStorage.setItem('angelai_show_sidebar', 'true');
     }
+    this.isReady = true;
   }
 
   onDocumentReady(documentId: string): void {
@@ -50,7 +73,17 @@ export class App implements OnInit {
     localStorage.setItem(DOCUMENT_KEY, documentId);
     this.currentView = 'chat';
     this.showDocumentList = true;
+    this.sessionHistoryRefresh += 1;
     localStorage.setItem('angelai_show_sidebar', 'true');
+  }
+
+  onSessionSelected(session: ChatSession): void {
+    this.sessionId = session.id;
+    this.documentId = session.document_id;
+    localStorage.setItem(SESSION_KEY, session.id);
+    if (session.document_id) localStorage.setItem(DOCUMENT_KEY, session.document_id);
+    this.currentView = 'chat';
+    this.showDocumentList = true;
   }
 
   onDocumentSelected(documentId: string | null): void {

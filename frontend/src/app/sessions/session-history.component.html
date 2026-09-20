@@ -1,0 +1,18 @@
+<aside class="session-history">
+  <div class="history-heading">
+    <span>Conversations</span>
+  </div>
+  @if (!sessions.length) {
+    <p class="empty-history">Your conversations will appear here.</p>
+  } @else {
+    <div class="session-items">
+      @for (session of sessions; track session.id) {
+        <button class="session-item" [class.selected]="selectedId === session.id" (click)="select(session)">
+          <span class="session-title">{{ session.title }}</span>
+          <span class="session-date">{{ session.created_at | date:'MMM d, y' }}</span>
+          <span class="session-delete" role="button" tabindex="0" (click)="delete(session, $event)">Delete</span>
+        </button>
+      }
+    </div>
+  }
+</aside>

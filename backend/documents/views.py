@@ -6,6 +6,8 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 from .models import Document
 from .services import process_document
@@ -16,8 +18,8 @@ ALLOWED_EXTENSIONS = {"pdf", "txt"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def upload_document(request):
     try:
         file = request.FILES.get("file")
@@ -52,6 +54,7 @@ def upload_document(request):
                 dest.write(chunk)
 
         doc = Document.objects.create(
+            user=request.user,
             session_id=session_id,
             filename=file.name,
             file_path=file_path,
@@ -71,18 +74,19 @@ def upload_document(request):
         return JsonResponse({"error": f"Upload failed: {str(e)}"}, status=500)
 
 
-@require_http_methods(["GET"])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def document_status(request, document_id):
     try:
-        doc = Document.objects.get(id=document_id)
+        doc = Document.objects.get(id=document_id, user=request.user)
     except (Document.DoesNotExist, Exception):
         return JsonResponse({"error": "Document not found."}, status=404)
 
     return JsonResponse({"status": doc.status, "error_message": doc.error_message})
 
 
-@csrf_exempt
-@require_http_methods(["GET"])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def list_documents(request):
     """
     List all documents for a given session_id.
@@ -91,21 +95,21 @@ def list_documents(request):
     if not session_id:
         return JsonResponse({"error": "session_id is required."}, status=400)
     
-    documents = Document.objects.filter(session_id=session_id).values(
+    documents = Document.objects.filter(user=request.user, session_id=session_id).values(
         "id", "filename", "status", "created_at", "error_message"
     ).order_by("-created_at")
     
     return JsonResponse({"documents": list(documents)}, json_dumps_params={"default": str})
 
 
-@csrf_exempt
-@require_http_methods(["DELETE"])
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
 def delete_document(request, document_id):
     """
     Delete a document from both the database and ChromaDB.
     """
     try:
-        doc = Document.objects.get(id=document_id)
+        doc = Document.objects.get(id=document_id, user=request.user)
     except Document.DoesNotExist:
         return JsonResponse({"error": "Document not found."}, status=404)
     

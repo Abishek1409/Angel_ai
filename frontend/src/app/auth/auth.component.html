@@ -1,0 +1,26 @@
+<section class="auth-page">
+  <div class="auth-panel">
+    <p class="eyebrow">AngelAI</p>
+    <h1>{{ mode === 'login' ? 'Welcome back' : 'Create your account' }}</h1>
+    <p class="lede">Your private workspace for asking better questions.</p>
+
+    <form (ngSubmit)="submit()">
+      <label>
+        Username
+        <input name="username" [(ngModel)]="username" autocomplete="username" required />
+      </label>
+      <label>
+        Password
+        <input name="password" [(ngModel)]="password" type="password" autocomplete="current-password" required />
+      </label>
+      @if (error) { <p class="error">{{ error }}</p> }
+      <button type="submit" [disabled]="busy || !username || !password">
+        {{ busy ? 'Working...' : (mode === 'login' ? 'Sign in' : 'Sign up') }}
+      </button>
+    </form>
+
+    <button class="mode-toggle" type="button" (click)="toggleMode()">
+      {{ mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Sign in' }}
+    </button>
+  </div>
+</section>

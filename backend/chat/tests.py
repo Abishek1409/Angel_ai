@@ -2,15 +2,26 @@ import io
 import json
 import uuid
 from unittest.mock import patch, MagicMock
-from django.test import TestCase, Client
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from documents.models import Document
 from chat.services import retrieve_chunks, generate_answer
 
 
+def authenticate_client(client, username):
+    user = get_user_model().objects.create_user(username=username, password="test-password")
+    access_token = str(RefreshToken.for_user(user).access_token)
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+    return user
+
+
 class UploadDocumentViewTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "chat-upload-user")
         self.session_id = str(uuid.uuid4())
         self.upload_url = "/api/documents/upload/"
 
@@ -69,8 +80,10 @@ class UploadDocumentViewTests(TestCase):
 
 class DocumentStatusViewTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "chat-status-user")
         self.doc = Document.objects.create(
+            user=self.user,
             session_id=uuid.uuid4(),
             filename="test.txt",
             file_path="/tmp/test.txt",
@@ -224,10 +237,12 @@ class GenerateAnswerTests(TestCase):
 
 class QueryViewTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "chat-query-user")
         self.url = "/api/chat/query/"
         self.session_id = str(uuid.uuid4())
         self.doc = Document.objects.create(
+            user=self.user,
             session_id=self.session_id,
             filename="test.txt",
             file_path="/tmp/test.txt",
@@ -324,9 +339,11 @@ class HealthEndpointTests(TestCase):
 
 class DocumentDeleteTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "chat-delete-user")
         self.session_id = str(uuid.uuid4())
         self.doc = Document.objects.create(
+            user=self.user,
             session_id=self.session_id,
             filename="todelete.pdf",
             file_path="/tmp/todelete.pdf",
@@ -345,15 +362,18 @@ class DocumentDeleteTests(TestCase):
 
 class ListDocumentsTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "chat-list-user")
         self.session_id = str(uuid.uuid4())
         Document.objects.create(
+            user=self.user,
             session_id=self.session_id,
             filename="a.pdf",
             file_path="/tmp/a.pdf",
             status="ready",
         )
         Document.objects.create(
+            user=self.user,
             session_id=uuid.uuid4(),
             filename="other.pdf",
             file_path="/tmp/other.pdf",

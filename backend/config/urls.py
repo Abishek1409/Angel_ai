@@ -7,6 +7,8 @@ from .health import health_check
 urlpatterns = [
     path("", health_check),
     path("health/", health_check),
+    path("api/auth/", include("auth.urls")),
     path("api/documents/", include("documents.urls")),
     path("api/chat/", include("chat.urls")),
+    path("api/sessions/", include("chat.session_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

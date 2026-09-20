@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../shared/services/chat.service';
@@ -24,7 +24,7 @@ export interface Message {
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
-export class ChatComponent implements OnInit {
+export class ChatComponent implements OnInit, OnChanges {
   @Input() documentId: string | null = null;
   @Input() sessionId: string = '';
   @Output() newDocument = new EventEmitter<void>();
@@ -37,13 +37,27 @@ export class ChatComponent implements OnInit {
   constructor(private chatService: ChatService) {}
 
   ngOnInit(): void {
-    // Load history from server
+    this.loadHistory();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if ((changes['sessionId'] || changes['documentId']) && !changes['sessionId']?.firstChange) {
+      this.loadHistory();
+    }
+  }
+
+  private loadHistory(): void {
     this.chatService.getHistory(this.documentId, this.sessionId).subscribe({
       next: (res) => {
-        this.conversation = res.messages.map(m => ({
-          question: m.question,
-          answer: m.answer,
-        }));
+        const messages = res.messages;
+        this.conversation = [];
+        for (let index = 0; index < messages.length; index += 2) {
+          const question = messages[index];
+          const answer = messages[index + 1];
+          if (question?.role === 'user' && answer?.role === 'assistant') {
+            this.conversation.push({ question: question.content, answer: answer.content });
+          }
+        }
       },
       error: () => {
         // History load failure is non-critical, start fresh

@@ -21,8 +21,15 @@ export interface QueryResponse {
 
 export interface HistoryMessage {
   id: string;
-  question: string;
-  answer: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  document_id: string | null;
   created_at: string;
 }
 
@@ -48,5 +55,17 @@ export class ChatService {
     return this.http.get<{ messages: HistoryMessage[] }>(
       `${this.apiUrl}/history/${historyDocumentId}/?session_id=${sessionId}`
     );
+  }
+
+  getSessions(): Observable<{ sessions: ChatSession[] }> {
+    return this.http.get<{ sessions: ChatSession[] }>(`${environment.apiUrl}/api/sessions/`);
+  }
+
+  getSessionMessages(sessionId: string): Observable<{ messages: HistoryMessage[] }> {
+    return this.http.get<{ messages: HistoryMessage[] }>(`${environment.apiUrl}/api/sessions/${sessionId}/messages/`);
+  }
+
+  deleteSession(sessionId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${environment.apiUrl}/api/sessions/${sessionId}/`);
   }
 }

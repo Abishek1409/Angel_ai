@@ -88,7 +88,14 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         raise RuntimeError(f"Failed to query ChromaDB: {e}") from e
 
 
-def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chunk_ids: list[str]) -> tuple[str, list[str], list[dict], bool]:
+def generate_answer(
+    question: str,
+    chunks: list[str],
+    metadatas: list[dict],
+    chunk_ids: list[str],
+    conversation_history: str = "",
+    cache_scope: str = "",
+) -> tuple[str, list[str], list[dict], bool]:
     """
     Build a prompt from retrieved chunks and generate an answer via Gemini.
 
@@ -111,7 +118,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
         )
 
     # Check cache for response
-    cached_response = get_cached_response(question, chunk_ids)
+    cached_response = get_cached_response(question, chunk_ids, cache_scope=cache_scope + conversation_history)
     if cached_response:
         answer, sources, citations = cached_response
         return answer, sources, citations, True
@@ -119,6 +126,7 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
     context = "\n\n---\n\n".join(chunks)
     prompt = (
         "You are a helpful assistant. Answer the question below using only the provided context.\n\n"
+        f"{conversation_history}"
         f"Context:\n{context}\n\n"
         f"Question: {question}\n\n"
         "Answer:"
@@ -138,7 +146,14 @@ def generate_answer(question: str, chunks: list[str], metadatas: list[dict], chu
             for meta, cid in zip(metadatas, chunk_ids)
         ]
 
-        cache_response(question, chunk_ids, answer, sources, citations)
+        cache_response(
+            question,
+            chunk_ids,
+            answer,
+            sources,
+            citations,
+            cache_scope=cache_scope + conversation_history,
+        )
 
         return answer, sources, citations, False
     except Exception as e:

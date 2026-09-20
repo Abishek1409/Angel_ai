@@ -6,16 +6,27 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import fitz
-from django.test import TestCase, Client
+from django.contrib.auth import get_user_model
+from django.test import TestCase
 from django.urls import reverse
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Document
 from .services import chunk_text, extract_text
 
 
+def authenticate_client(client, username):
+    user = get_user_model().objects.create_user(username=username, password="test-password")
+    access_token = str(RefreshToken.for_user(user).access_token)
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+    return user
+
+
 class UploadDocumentViewTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "documents-upload-user")
         self.session_id = str(uuid.uuid4())
         self.upload_url = "/api/documents/upload/"
 
@@ -74,8 +85,10 @@ class UploadDocumentViewTests(TestCase):
 
 class DocumentStatusViewTests(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
+        self.user = authenticate_client(self.client, "documents-status-user")
         self.doc = Document.objects.create(
+            user=self.user,
             session_id=uuid.uuid4(),
             filename="test.txt",
             file_path="/tmp/test.txt",

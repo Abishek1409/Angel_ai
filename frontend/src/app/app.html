@@ -1,3 +1,8 @@
+@if (!isReady) {
+  <div class="auth-loading">Loading AngelAI...</div>
+} @else if (!auth.username()) {
+  <app-auth />
+} @else {
 <div class="app-shell">
   <header class="app-header">
     <div class="app-logo">
@@ -6,9 +11,11 @@
       </svg>
       <span>AngelAI</span>
     </div>
+    <button class="logout-button" type="button" (click)="logout()">Sign out</button>
   </header>
 
   <main class="app-main" [class.app-main--with-sidebar]="showDocumentList">
+    <app-session-history [refreshToken]="sessionHistoryRefresh" (sessionSelected)="onSessionSelected($event)" />
     @if (showDocumentList) {
       <app-document-list
         [sessionId]="sessionId"
@@ -31,3 +38,4 @@
     </div>
   </main>
 </div>
+}
