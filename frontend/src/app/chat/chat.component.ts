@@ -41,7 +41,17 @@ export class ChatComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if ((changes['sessionId'] || changes['documentId']) && !changes['sessionId']?.firstChange) {
+    if (changes['sessionId'] && changes['sessionId'].firstChange) {
+      return;
+    }
+
+    if (changes['sessionId'] || changes['documentId']) {
+      if (!this.sessionId) {
+        this.conversation = [];
+        this.question = '';
+        this.errorMessage = '';
+        return;
+      }
       this.loadHistory();
     }
   }

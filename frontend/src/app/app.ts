@@ -6,7 +6,7 @@ import { DocumentListComponent } from './documents/document-list.component';
 import { AuthComponent } from './auth/auth.component';
 import { AuthService } from './auth/auth.service';
 import { SessionHistoryComponent } from './sessions/session-history.component';
-import { ChatSession } from './shared/services/chat.service';
+import { ChatService, ChatSession } from './shared/services/chat.service';
 
 const SESSION_KEY = 'angelai_session';
 const DOCUMENT_KEY = 'angelai_document';
@@ -29,7 +29,10 @@ export class App implements OnInit {
   sessionHistoryRefresh = 0;
   isReady = false;
 
-  constructor(public auth: AuthService) {}
+  constructor(
+    public auth: AuthService,
+    private chatService: ChatService,
+  ) {}
 
   ngOnInit(): void {
     this.auth.refresh().subscribe({
@@ -46,25 +49,63 @@ export class App implements OnInit {
   }
 
   private initializeWorkspace(): void {
-    // Restore session from localStorage so refresh keeps state
-    this.sessionId = localStorage.getItem(SESSION_KEY) || crypto.randomUUID();
-    localStorage.setItem(SESSION_KEY, this.sessionId);
+    const savedSessionId = localStorage.getItem(SESSION_KEY);
+    const savedDocumentId = localStorage.getItem(DOCUMENT_KEY);
 
-    this.documentId = localStorage.getItem(DOCUMENT_KEY) || null;
-    
-    // Check if sidebar should be shown (stored in localStorage)
-    const shouldShowSidebar = localStorage.getItem('angelai_show_sidebar');
-    if (shouldShowSidebar === 'true') {
-      this.showDocumentList = true;
-    }
-    
-    // If we have a document, show chat view and sidebar
-    if (this.documentId) {
-      this.currentView = 'chat';
-      this.showDocumentList = true;
-      localStorage.setItem('angelai_show_sidebar', 'true');
-    }
-    this.isReady = true;
+    this.sessionId = savedSessionId || crypto.randomUUID();
+    this.documentId = savedDocumentId || null;
+
+    this.chatService.getSessions().subscribe({
+      next: (response: { sessions: ChatSession[] }) => {
+        const validSessionIds = new Set(response.sessions.map((session: ChatSession) => session.id));
+        const currentSessionExists = validSessionIds.has(this.sessionId);
+
+        if (!currentSessionExists) {
+          this.sessionId = crypto.randomUUID();
+          this.documentId = null;
+          localStorage.setItem(SESSION_KEY, this.sessionId);
+          localStorage.removeItem(DOCUMENT_KEY);
+          this.currentView = 'upload';
+          this.showDocumentList = false;
+          localStorage.removeItem('angelai_show_sidebar');
+        } else {
+          localStorage.setItem(SESSION_KEY, this.sessionId);
+          if (this.documentId) {
+            localStorage.setItem(DOCUMENT_KEY, this.documentId);
+          } else {
+            localStorage.removeItem(DOCUMENT_KEY);
+          }
+
+          const isDocumentAttached = response.sessions.some(
+            (session: ChatSession) => session.id === this.sessionId && session.document_id === this.documentId
+          );
+
+          if (!this.documentId || isDocumentAttached) {
+            this.currentView = 'chat';
+            this.showDocumentList = true;
+            localStorage.setItem('angelai_show_sidebar', 'true');
+          } else {
+            this.documentId = null;
+            localStorage.removeItem(DOCUMENT_KEY);
+            this.currentView = 'upload';
+            this.showDocumentList = false;
+            localStorage.removeItem('angelai_show_sidebar');
+          }
+        }
+
+        this.isReady = true;
+      },
+      error: () => {
+        this.sessionId = crypto.randomUUID();
+        this.documentId = null;
+        localStorage.setItem(SESSION_KEY, this.sessionId);
+        localStorage.removeItem(DOCUMENT_KEY);
+        this.currentView = 'upload';
+        this.showDocumentList = false;
+        localStorage.removeItem('angelai_show_sidebar');
+        this.isReady = true;
+      }
+    });
   }
 
   onDocumentReady(documentId: string): void {
