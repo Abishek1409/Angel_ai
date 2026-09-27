@@ -2,6 +2,7 @@ import os
 import logging
 import re
 import requests
+from openai import OpenAI
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
 from documents.services import _embed_text, _get_gemini_api_key
@@ -27,28 +28,105 @@ def _clean_answer_text(text: str) -> str:
     return cleaned.strip()
 
 
-def _generate_gemini_answer(prompt: str) -> str:
-    """Generate an answer with Gemini using the same key as embeddings."""
-    model = settings.GEMINI_CHAT_MODEL.removeprefix("models/")
-    response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        params={"key": _get_gemini_api_key()},
-        json={
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1024},
-        },
-        timeout=90,
+def _generate_llm_response(prompt: str) -> str:
+    """
+    Generate an answer using Groq (primary) with automatic fallback to OpenRouter free models.
+    
+    Tries Groq first for fast inference. If Groq fails for any reason (API error, timeout, 
+    model deprecated, connection error), automatically falls back to OpenRouter's free tier 
+    models, rotating through the list until one succeeds.
+    
+    Args:
+        prompt: The complete prompt including context and question.
+        
+    Returns:
+        Generated answer text.
+        
+    Raises:
+        RuntimeError: If all providers (Groq + all OpenRouter models) fail.
+    """
+    # Try Groq first (primary provider - fast inference hardware)
+    if settings.GROQ_API_KEY:
+        try:
+            logger.info(f"Attempting Groq with model: {settings.GROQ_MODEL}")
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.GROQ_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 1024
+                },
+                timeout=15  # Reasonable timeout so hanging requests don't block fallback
+            )
+            
+            if response.ok:
+                answer = response.json()["choices"][0]["message"]["content"].strip()
+                logger.info(f"✓ Response served by: Groq/{settings.GROQ_MODEL}")
+                return answer
+            else:
+                logger.warning(f"Groq API error {response.status_code}: {response.text}")
+        except requests.exceptions.Timeout:
+            logger.warning("Groq request timed out after 15s, falling back to OpenRouter")
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"Groq connection error: {e}, falling back to OpenRouter")
+        except Exception as e:
+            logger.warning(f"Groq unexpected error ({type(e).__name__}): {e}, falling back to OpenRouter")
+    else:
+        logger.info("GROQ_API_KEY not configured, using OpenRouter directly")
+    
+    # Fallback to OpenRouter free models (rotate through list)
+    if not settings.OPENROUTER_API_KEY:
+        raise RuntimeError(
+            "AI service is temporarily unavailable. Both Groq and OpenRouter are not configured."
+        )
+    
+    openrouter_client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=settings.OPENROUTER_API_KEY,
     )
-    if not response.ok:
-        raise RuntimeError(f"Gemini chat API returned {response.status_code}: {response.text}")
-
-    candidates = response.json().get("candidates", [])
-    if not candidates:
-        raise RuntimeError("Gemini chat API returned no answer candidates")
-    return "".join(
-        part.get("text", "")
-        for part in candidates[0].get("content", {}).get("parts", [])
-    ).strip()
+    
+    for model_id in settings.OPENROUTER_FREE_MODELS:
+        try:
+            logger.info(f"Attempting OpenRouter fallback with model: {model_id}")
+            completion = openrouter_client.chat.completions.create(
+                model=model_id,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=1024,
+                timeout=15
+            )
+            answer = completion.choices[0].message.content.strip()
+            logger.info(f"✓ Response served by: OpenRouter/{model_id}")
+            return answer
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # Handle rate limits - try next model immediately
+            if "429" in error_msg or "rate limit" in error_msg or "capacity" in error_msg:
+                logger.warning(f"OpenRouter model {model_id} rate limited, trying next model")
+                continue
+            
+            # Handle model not found or no longer free - log clearly and skip
+            elif "model not found" in error_msg or "payment" in error_msg or "billing" in error_msg:
+                logger.warning(f"⚠ OPENROUTER_FREE_MODELS entry no longer free or valid: {model_id}")
+                continue
+            
+            # Other errors - try next model rather than retrying same one
+            else:
+                logger.warning(f"OpenRouter model {model_id} error ({type(e).__name__}): {e}, trying next model")
+                continue
+    
+    # All providers failed
+    raise RuntimeError(
+        "AI service is temporarily unavailable, please try again. "
+        "All LLM providers (Groq and OpenRouter free models) are currently unavailable or rate limited."
+    )
 
 
 def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> tuple[list[str], list[dict], list[str], bool]:
@@ -155,7 +233,7 @@ def generate_answer(
     )
 
     try:
-        answer = _clean_answer_text(_generate_gemini_answer(prompt))
+        answer = _clean_answer_text(_generate_llm_response(prompt))
 
         sources = list(dict.fromkeys([meta.get("source", "Unknown") for meta in metadatas]))
         citations = [
@@ -180,6 +258,5 @@ def generate_answer(
         return answer, sources, citations, False
     except Exception as e:
         raise RuntimeError(
-            f"Failed to generate answer with Gemini using model '{settings.GEMINI_CHAT_MODEL}': "
-            f"{str(e)} Error type: {type(e).__name__}"
+            f"Failed to generate answer: {str(e)} Error type: {type(e).__name__}"
         ) from e

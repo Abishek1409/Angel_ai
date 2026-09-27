@@ -1,8 +1,11 @@
 import hashlib
 import json
+import logging
 import redis
 from django.conf import settings
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _get_redis_client():
@@ -11,9 +14,10 @@ def _get_redis_client():
         redis_url = settings.REDIS_URL
         client = redis.from_url(redis_url, decode_responses=True)
         client.ping()  # Test connection
+        logger.info(f"✓ Redis connected successfully at {redis_url}")
         return client
-    except Exception:
-        # Redis not available, continue without caching
+    except Exception as e:
+        logger.warning(f"✗ Redis not available ({type(e).__name__}: {str(e)}), continuing without cache")
         return None
 
 
@@ -40,9 +44,11 @@ def get_cached_embedding(query_text: str) -> Optional[list]:
         key = f"embedding:{_hash_key(query_text)}"
         cached = client.get(key)
         if cached:
+            logger.info("✓ Cache HIT: embedding retrieved from Redis")
             return json.loads(cached)
-    except Exception:
-        pass
+        logger.debug("✗ Cache MISS: embedding not found in Redis")
+    except Exception as e:
+        logger.warning(f"Redis get_cached_embedding error: {e}")
     
     return None
 
@@ -63,8 +69,9 @@ def cache_embedding(query_text: str, embedding: list, ttl: int = 3600) -> None:
     try:
         key = f"embedding:{_hash_key(query_text)}"
         client.setex(key, ttl, json.dumps(embedding))
-    except Exception:
-        pass
+        logger.info(f"✓ Cached embedding to Redis (TTL: {ttl}s)")
+    except Exception as e:
+        logger.warning(f"Redis cache_embedding error: {e}")
 
 
 def get_cached_response(query_text: str, chunk_ids: list, cache_scope: str = "") -> Optional[tuple]:
@@ -88,9 +95,11 @@ def get_cached_response(query_text: str, chunk_ids: list, cache_scope: str = "")
         cached = client.get(key)
         if cached:
             data = json.loads(cached)
+            logger.info("✓ Cache HIT: response retrieved from Redis")
             return data["answer"], data["sources"], data.get("citations", [])
-    except Exception:
-        pass
+        logger.debug("✗ Cache MISS: response not found in Redis")
+    except Exception as e:
+        logger.warning(f"Redis get_cached_response error: {e}")
 
     return None
 
@@ -116,5 +125,6 @@ def cache_response(query_text: str, chunk_ids: list, answer: str, sources: list,
         key = f"response:{_hash_key(composite)}"
         data = {"answer": answer, "sources": sources, "citations": citations}
         client.setex(key, ttl, json.dumps(data))
-    except Exception:
-        pass
+        logger.info(f"✓ Cached response to Redis (TTL: {ttl}s)")
+    except Exception as e:
+        logger.warning(f"Redis cache_response error: {e}")

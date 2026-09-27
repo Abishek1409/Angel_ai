@@ -96,8 +96,37 @@ GEMINI_EMBEDDING_MODEL = os.environ.get(
 # Gemini API (used for embeddings and chat)
 GEMINI_CHAT_MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
 
+# Groq API (primary LLM provider for chat generation)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# OpenRouter API (fallback LLM provider with multiple free models)
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_FREE_MODELS = [
+    model.strip()
+    for model in os.environ.get(
+        "OPENROUTER_FREE_MODELS",
+        "meta-llama/llama-3.1-8b-instruct:free,"
+        "qwen/qwen-2.5-7b-instruct:free,"
+        "mistralai/mistral-7b-instruct:free,"
+        "x-ai/grok-beta:free"
+    ).split(",")
+    if model.strip()
+]
+
 # Redis cache
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+# Production security settings
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
