@@ -51,6 +51,7 @@ export class App implements OnInit {
   private initializeWorkspace(): void {
     const savedSessionId = localStorage.getItem(SESSION_KEY);
     const savedDocumentId = localStorage.getItem(DOCUMENT_KEY);
+    const savedSidebarState = localStorage.getItem('angelai_show_sidebar');
 
     this.sessionId = savedSessionId || crypto.randomUUID();
     this.documentId = savedDocumentId || null;
@@ -59,6 +60,7 @@ export class App implements OnInit {
       next: (response: { sessions: ChatSession[] }) => {
         const validSessionIds = new Set(response.sessions.map((session: ChatSession) => session.id));
         const currentSessionExists = validSessionIds.has(this.sessionId);
+        const hasAnySessions = response.sessions.length > 0;
 
         if (!currentSessionExists) {
           this.sessionId = crypto.randomUUID();
@@ -66,8 +68,11 @@ export class App implements OnInit {
           localStorage.setItem(SESSION_KEY, this.sessionId);
           localStorage.removeItem(DOCUMENT_KEY);
           this.currentView = 'upload';
-          this.showDocumentList = false;
-          localStorage.removeItem('angelai_show_sidebar');
+          // Keep sidebar visible if user had sessions before
+          this.showDocumentList = hasAnySessions || savedSidebarState === 'true';
+          if (this.showDocumentList) {
+            localStorage.setItem('angelai_show_sidebar', 'true');
+          }
         } else {
           localStorage.setItem(SESSION_KEY, this.sessionId);
           if (this.documentId) {
@@ -88,8 +93,11 @@ export class App implements OnInit {
             this.documentId = null;
             localStorage.removeItem(DOCUMENT_KEY);
             this.currentView = 'upload';
-            this.showDocumentList = false;
-            localStorage.removeItem('angelai_show_sidebar');
+            // Keep sidebar visible if user has sessions
+            this.showDocumentList = hasAnySessions || savedSidebarState === 'true';
+            if (this.showDocumentList) {
+              localStorage.setItem('angelai_show_sidebar', 'true');
+            }
           }
         }
 
@@ -101,8 +109,8 @@ export class App implements OnInit {
         localStorage.setItem(SESSION_KEY, this.sessionId);
         localStorage.removeItem(DOCUMENT_KEY);
         this.currentView = 'upload';
-        this.showDocumentList = false;
-        localStorage.removeItem('angelai_show_sidebar');
+        // Keep sidebar if it was previously shown
+        this.showDocumentList = savedSidebarState === 'true';
         this.isReady = true;
       }
     });
