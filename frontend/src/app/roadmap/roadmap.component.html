@@ -1,0 +1,51 @@
+<div class="roadmap-container">
+  <div class="roadmap-header">
+    <h2>Learning Roadmap</h2>
+    <button 
+      class="btn-regenerate" 
+      (click)="regenerateRoadmap()"
+      [disabled]="isGenerating || !roadmap"
+      title="Generate new roadmap"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+      </svg>
+      Regenerate
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading || isGenerating" class="loading-state">
+    <div class="spinner"></div>
+    <p>{{ isGenerating ? 'Generating roadmap with AI...' : 'Loading roadmap...' }}</p>
+    <p class="loading-subtitle">This may take a few seconds</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage && !isLoading && !isGenerating" class="error-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadRoadmap()">Try Again</button>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!roadmap && !isLoading && !isGenerating && !errorMessage" class="empty-state">
+    <p>No roadmap available</p>
+    <button class="btn-generate" (click)="generateRoadmap()">Generate Roadmap</button>
+  </div>
+
+  <!-- Render Error -->
+  <div *ngIf="renderError" class="render-error">
+    <p>{{ renderError }}</p>
+    <button class="btn-retry" (click)="regenerateRoadmap()">Regenerate</button>
+  </div>
+
+  <!-- Roadmap Diagram -->
+  <div *ngIf="roadmap && !isLoading && !isGenerating && !renderError" class="roadmap-view">
+    <div class="diagram-container" #mermaidContainer></div>
+  </div>
+</div>

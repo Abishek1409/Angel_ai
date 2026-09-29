@@ -1,0 +1,96 @@
+<div class="flashcards-container">
+  <div class="flashcards-header">
+    <h2>Flashcards</h2>
+    <button 
+      class="btn-regenerate" 
+      (click)="regenerateFlashcards()"
+      [disabled]="isGenerating || flashcards.length === 0"
+      title="Generate new flashcards"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+      </svg>
+      Regenerate
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading || isGenerating" class="loading-state">
+    <div class="spinner"></div>
+    <p>{{ isGenerating ? 'Generating flashcards with AI...' : 'Loading flashcards...' }}</p>
+    <p class="loading-subtitle">This may take a few seconds</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage && !isLoading && !isGenerating" class="error-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadFlashcards()">Try Again</button>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="flashcards.length === 0 && !isLoading && !isGenerating && !errorMessage" class="empty-state">
+    <p>No flashcards available</p>
+    <button class="btn-generate" (click)="generateFlashcards()">Generate Flashcards</button>
+  </div>
+
+  <!-- Flashcard View -->
+  <div *ngIf="currentCard && !isLoading && !isGenerating" class="flashcard-view">
+    <div class="progress-indicator">
+      <span class="progress-text">{{ progress }}</span>
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="((currentIndex + 1) / flashcards.length) * 100"></div>
+      </div>
+    </div>
+
+    <div class="flashcard" [class.flipped]="isFlipped" (click)="flipCard()">
+      <div class="card-inner">
+        <div class="card-front">
+          <div class="card-label">Question</div>
+          <div class="card-content">{{ currentCard.question }}</div>
+          <div class="card-hint">Click to reveal answer</div>
+        </div>
+        <div class="card-back">
+          <div class="card-label">Answer</div>
+          <div class="card-content">{{ currentCard.answer }}</div>
+          <div class="card-hint">Click to see question</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="navigation-controls">
+      <button 
+        class="btn-nav" 
+        (click)="previousCard(); $event.stopPropagation()"
+        [disabled]="currentIndex === 0"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Previous
+      </button>
+      
+      <button class="btn-flip" (click)="flipCard(); $event.stopPropagation()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+        </svg>
+        Flip Card
+      </button>
+      
+      <button 
+        class="btn-nav" 
+        (click)="nextCard(); $event.stopPropagation()"
+        [disabled]="currentIndex === flashcards.length - 1"
+      >
+        Next
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
