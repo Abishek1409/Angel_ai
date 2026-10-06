@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AiFeaturesService, Flashcard } from '../shared/services/ai-features.service';
 
@@ -9,7 +9,7 @@ import { AiFeaturesService, Flashcard } from '../shared/services/ai-features.ser
   templateUrl: './flashcards.component.html',
   styleUrl: './flashcards.component.scss'
 })
-export class FlashcardsComponent implements OnInit {
+export class FlashcardsComponent implements OnInit, OnChanges {
   @Input() documentId: string = '';
 
   flashcards: Flashcard[] = [];
@@ -23,6 +23,15 @@ export class FlashcardsComponent implements OnInit {
 
   ngOnInit(): void {
     if (this.documentId) {
+      this.loadFlashcards();
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['documentId'] && !changes['documentId'].firstChange && this.documentId) {
+      this.flashcards = [];
+      this.currentIndex = 0;
+      this.isFlipped = false;
       this.loadFlashcards();
     }
   }

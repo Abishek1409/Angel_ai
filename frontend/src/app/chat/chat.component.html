@@ -1,8 +1,14 @@
 <div class="chat-wrap">
   <!-- Toolbar -->
   <div class="chat-toolbar">
-    <span class="chat-toolbar__title">Chat</span>
-    <button class="new-doc-btn" (click)="onNewDocument()">
+    <div class="chat-toolbar__tabs" role="tablist" aria-label="Document tools">
+      <button class="chat-toolbar__tab" [class.chat-toolbar__tab--active]="activeTab === 'chat'" [attr.aria-selected]="activeTab === 'chat'" role="tab" (click)="selectTab('chat')">Chat</button>
+      @if (documentId) {
+        <button class="chat-toolbar__tab" [class.chat-toolbar__tab--active]="activeTab === 'flashcards'" [attr.aria-selected]="activeTab === 'flashcards'" role="tab" (click)="selectTab('flashcards')">Flashcards</button>
+        <button class="chat-toolbar__tab" [class.chat-toolbar__tab--active]="activeTab === 'flowchart'" [attr.aria-selected]="activeTab === 'flowchart'" role="tab" (click)="selectTab('flowchart')">Flowchart</button>
+      }
+    </div>
+    <button class="new-doc-btn" type="button" (click)="onNewDocument()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
@@ -13,7 +19,7 @@
     </button>
   </div>
 
-  <!-- Messages -->
+  @if (activeTab === 'chat') {
   <div class="chat-messages" aria-live="polite">
     <div *ngIf="conversation.length === 0 && !isLoading" class="chat-empty">
       <p>Ask a question about your document</p>
@@ -60,4 +66,17 @@
       </svg>
     </button>
   </form>
+  } @else if (activeTab === 'flashcards' && documentId) {
+    @defer (when activeTab === 'flashcards' && documentId) {
+      <app-flashcards class="chat-feature-view" [documentId]="documentId" />
+    } @placeholder {
+      <div class="chat-feature-view" aria-busy="true"></div>
+    }
+  } @else if (activeTab === 'flowchart' && documentId) {
+    @defer (when activeTab === 'flowchart' && documentId) {
+      <app-roadmap class="chat-feature-view" [documentId]="documentId" />
+    } @placeholder {
+      <div class="chat-feature-view" aria-busy="true"></div>
+    }
+  }
 </div>

@@ -53,9 +53,14 @@
           <div class="queue-item" [class.queue-item--ready]="item.status === 'ready'" [class.queue-item--error]="item.status === 'error'">
             <span class="queue-item__name">{{ item.file.name }}</span>
             <span class="queue-item__status" [class.queue-item__status--ready]="item.status === 'ready'" [class.queue-item__status--error]="item.status === 'error'">
-              {{ item.status === 'uploading' ? 'Uploading…' : item.status === 'processing_ocr' ? 'Processing (OCR)…' : item.status === 'processing' ? 'Processing…' : item.status === 'ready' ? 'Ready' : 'Error' }}
+              {{ item.status === 'uploading' ? 'Uploading ' + item.uploadProgress + '%' : item.status === 'processing_ocr' ? 'Reading scanned pages…' : item.status === 'processing' ? 'Analyzing…' : item.status === 'ready' ? 'Ready' : 'Error' }}
             </span>
           </div>
+          @if (item.status === 'uploading') {
+            <div class="queue-item__progress" role="progressbar" [attr.aria-valuenow]="item.uploadProgress" aria-valuemin="0" aria-valuemax="100">
+              <span [style.width.%]="item.uploadProgress"></span>
+            </div>
+          }
         }
       </div>
     }

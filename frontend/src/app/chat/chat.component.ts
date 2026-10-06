@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../shared/services/chat.service';
 import { MessageComponent } from './message/message.component';
+import { FlashcardsComponent } from '../flashcards/flashcards.component';
+import { RoadmapComponent } from '../roadmap/roadmap.component';
+
+type ChatTab = 'chat' | 'flashcards' | 'flowchart';
 
 export interface Message {
   question: string;
@@ -20,7 +24,7 @@ export interface Message {
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, MessageComponent],
+  imports: [CommonModule, FormsModule, MessageComponent, FlashcardsComponent, RoadmapComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
@@ -33,6 +37,7 @@ export class ChatComponent implements OnInit, OnChanges {
   conversation: Message[] = [];
   isLoading: boolean = false;
   errorMessage: string = '';
+  activeTab: ChatTab = 'chat';
 
   constructor(private chatService: ChatService) {}
 
@@ -46,6 +51,9 @@ export class ChatComponent implements OnInit, OnChanges {
     }
 
     if (changes['sessionId'] || changes['documentId']) {
+      if (changes['documentId'] && !this.documentId) {
+        this.activeTab = 'chat';
+      }
       if (!this.sessionId) {
         this.conversation = [];
         this.question = '';
@@ -108,5 +116,9 @@ export class ChatComponent implements OnInit, OnChanges {
 
   onNewDocument(): void {
     this.newDocument.emit();
+  }
+
+  selectTab(tab: ChatTab): void {
+    this.activeTab = tab;
   }
 }

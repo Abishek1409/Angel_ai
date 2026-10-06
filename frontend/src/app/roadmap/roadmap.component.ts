@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, AfterViewInit, ElementRef, ViewChild } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, AfterViewInit, ElementRef, ViewChild, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AiFeaturesService, Roadmap } from '../shared/services/ai-features.service';
 import mermaid from 'mermaid';
@@ -10,7 +10,7 @@ import mermaid from 'mermaid';
   templateUrl: './roadmap.component.html',
   styleUrl: './roadmap.component.scss'
 })
-export class RoadmapComponent implements OnInit, AfterViewInit {
+export class RoadmapComponent implements OnInit, OnChanges, AfterViewInit {
   @Input() documentId: string = '';
   @ViewChild('mermaidContainer') mermaidContainer!: ElementRef;
 
@@ -38,6 +38,13 @@ export class RoadmapComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     // Render will happen after data is loaded
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['documentId'] && !changes['documentId'].firstChange && this.documentId) {
+      this.roadmap = null;
+      this.loadRoadmap();
+    }
   }
 
   loadRoadmap(): void {

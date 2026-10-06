@@ -22,6 +22,8 @@
 }
 
 .app-header {
+  display: flex;
+  align-items: center;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border);
   background: var(--bg-card);
@@ -54,6 +56,8 @@
 
 .app-content {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -68,7 +72,30 @@
 }
 
 @media (max-width: 600px) {
+  .app-header { padding: .7rem 1rem; }
+
   .app-main:not(.app-main--with-sidebar) .app-content { 
     padding: 1.25rem 0.75rem; 
+  }
+}
+
+@media (max-width: 760px) {
+  .app-main,
+  .app-main--with-sidebar {
+    min-height: 0;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .app-main--with-sidebar .app-content {
+    flex: 1 0 58dvh;
+    min-height: 58dvh;
+    overflow: visible;
+  }
+
+  .app-main:not(.app-main--with-sidebar) .app-content {
+    width: 100%;
+    padding: 1rem;
   }
 }

@@ -166,3 +166,13 @@
     background: #555;
   }
 }
+
+@media (max-width: 600px) {
+  .roadmap-container { padding: 1rem .75rem; }
+  .roadmap-header { gap: .5rem; margin-bottom: 1rem; }
+  .roadmap-header h2 { font-size: 1.15rem; }
+  .btn-regenerate { padding: .45rem .55rem; font-size: .78rem; }
+  .roadmap-view { padding: .75rem; }
+  .diagram-container { max-height: 58dvh; }
+  .diagram-container ::ng-deep svg { max-width: none; min-width: 560px; }
+}

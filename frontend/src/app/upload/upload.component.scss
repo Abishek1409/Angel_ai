@@ -5,6 +5,32 @@
   animation: fade-up 0.4s ease both;
 }
 
+.file-list,
+.upload-queue { display: grid; gap: .5rem; }
+
+.file-item,
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  min-width: 0;
+  padding: .65rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.file-item__name,
+.queue-item__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-item__size,
+.queue-item__status { flex: 0 0 auto; color: var(--text-muted); font-size: .78rem; }
+.file-item__remove { border: 0; background: transparent; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
+.queue-item--ready .queue-item__status { color: var(--green); }
+.queue-item--error .queue-item__status { color: var(--red); }
+.queue-item__progress { height: 3px; overflow: hidden; background: var(--border); }
+.queue-item__progress span { display: block; height: 100%; background: var(--accent); transition: width .15s linear; }
+
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -144,4 +170,15 @@
   font-size: 0.85rem;
   color: var(--green);
   font-weight: 500;
+}
+
+@media (max-width: 600px) {
+  .upload-wrap { gap: 1rem; }
+  .upload-hero { padding-top: .25rem; }
+  .upload-title { font-size: 1.35rem; line-height: 1.25; text-wrap: balance; }
+  .upload-subtitle { font-size: .86rem; }
+  .upload-card { padding: .9rem; border-radius: 8px; }
+  .drop-zone { padding: 1.5rem .75rem; }
+  .file-item, .queue-item { padding: .55rem; gap: .4rem; }
+  .file-item__size, .queue-item__status { font-size: .7rem; }
 }

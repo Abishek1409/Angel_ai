@@ -1,7 +1,8 @@
 import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DocumentService, UploadResponse } from '../shared/services/document.service';
-import { Subscription, interval } from 'rxjs';
+import { HttpEventType } from '@angular/common/http';
+import { Subscription, timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
 const MAX_FILE_SIZE_MB = 20;
@@ -13,6 +14,7 @@ interface QueuedUpload {
   file: File;
   documentId: string;
   status: 'uploading' | 'processing' | 'processing_ocr' | 'ready' | 'error';
+  uploadProgress: number;
   errorMessage: string;
   pollSub: Subscription | null;
 }
@@ -90,6 +92,7 @@ export class UploadComponent implements OnDestroy {
         file,
         documentId: '',
         status: 'uploading',
+        uploadProgress: 0,
         errorMessage: '',
         pollSub: null,
       };
@@ -101,11 +104,19 @@ export class UploadComponent implements OnDestroy {
   private uploadNext(queued: QueuedUpload): void {
     queued.status = 'uploading';
     this.documentService.uploadFile(queued.file, this.sessionId).subscribe({
-      next: (res: UploadResponse) => {
-        queued.documentId = res.document_id;
-        queued.status = 'processing';
-        this.status = 'processing';
-        this.startPolling(queued);
+      next: (event) => {
+        if (event.type === HttpEventType.UploadProgress) {
+          queued.uploadProgress = event.total
+            ? Math.round((event.loaded / event.total) * 100)
+            : 0;
+        } else if (event.type === HttpEventType.Response && event.body) {
+          const res: UploadResponse = event.body;
+          queued.documentId = res.document_id;
+          queued.uploadProgress = 100;
+          queued.status = 'processing';
+          this.status = 'processing';
+          this.startPolling(queued);
+        }
       },
       error: () => {
         queued.status = 'error';
@@ -116,7 +127,7 @@ export class UploadComponent implements OnDestroy {
   }
 
   private startPolling(queued: QueuedUpload): void {
-    queued.pollSub = interval(POLL_INTERVAL_MS).pipe(
+    queued.pollSub = timer(0, POLL_INTERVAL_MS).pipe(
       switchMap(() => this.documentService.getStatus(queued.documentId)),
       takeWhile((res) => res.status === 'pending' || res.status === 'processing' || res.status === 'processing_ocr', true)
     ).subscribe({

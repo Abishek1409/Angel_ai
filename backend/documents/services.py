@@ -28,20 +28,29 @@ def _get_gemini_api_key():
     return api_key
 
 
-def _embed_text(text: str, task_type: str) -> list[float]:
+def _embed_texts(texts: list[str], task_type: str) -> list[list[float]]:
     model = settings.GEMINI_EMBEDDING_MODEL.removeprefix("models/")
     response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents",
         params={"key": _get_gemini_api_key()},
         json={
-            "content": {"parts": [{"text": text}]},
-            "taskType": task_type,
+            "requests": [
+                {
+                    "model": f"models/{model}",
+                    "content": {"parts": [{"text": text}]},
+                    "taskType": task_type,
+                }
+                for text in texts
+            ]
         },
         timeout=60,
     )
     if not response.ok:
-        raise RuntimeError(f"Gemini embedding API returned {response.status_code}: {response.text}")
-    return response.json()["embedding"]["values"]
+        raise RuntimeError(f"Gemini batch embedding API returned {response.status_code}: {response.text}")
+    embeddings = response.json().get("embeddings", [])
+    if len(embeddings) != len(texts):
+        raise RuntimeError("Gemini batch embedding API returned an unexpected number of embeddings")
+    return [embedding["values"] for embedding in embeddings]
 
 
 def extract_text(file_path: str, filename: str, status_callback=None) -> str:
@@ -154,8 +163,7 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
         embeddings: list[list[float]] = []
         for i in range(0, len(chunks), _EMBED_BATCH_SIZE):
             batch = chunks[i:i + _EMBED_BATCH_SIZE]
-            for chunk in batch:
-                embeddings.append(_embed_text(chunk, "RETRIEVAL_DOCUMENT"))
+            embeddings.extend(_embed_texts(batch, "RETRIEVAL_DOCUMENT"))
     except Exception as e:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 

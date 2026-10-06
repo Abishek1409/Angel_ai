@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -32,11 +32,14 @@ export class DocumentService {
 
   constructor(private http: HttpClient) {}
 
-  uploadFile(file: File, sessionId: string): Observable<UploadResponse> {
+  uploadFile(file: File, sessionId: string): Observable<HttpEvent<UploadResponse>> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('session_id', sessionId);
-    return this.http.post<UploadResponse>(`${this.apiUrl}/upload/`, formData);
+    return this.http.post<UploadResponse>(`${this.apiUrl}/upload/`, formData, {
+      observe: 'events',
+      reportProgress: true,
+    });
   }
 
   getStatus(documentId: string): Observable<StatusResponse> {
