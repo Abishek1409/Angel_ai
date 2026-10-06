@@ -34,7 +34,7 @@ export class DocumentListComponent implements OnInit, OnChanges {
 
   loadDocuments(): void {
     this.isLoading = true;
-    this.documentService.listDocuments(this.sessionId).subscribe({
+    this.documentService.listDocuments().subscribe({
       next: (res) => {
         this.documents = res.documents;
         this.isLoading = false;

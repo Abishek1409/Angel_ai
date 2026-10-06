@@ -30,6 +30,9 @@
     }
 
     <div class="app-content">
+      @if (workspaceError) {
+        <p class="workspace-error" role="alert">{{ workspaceError }}</p>
+      }
       @if (currentView === 'upload') {
         <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
       } @else if (currentView === 'chat') {

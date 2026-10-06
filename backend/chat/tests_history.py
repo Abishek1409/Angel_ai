@@ -38,6 +38,36 @@ class AuthenticatedHistoryTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item["role"] for item in response.json()["messages"]], ["user", "assistant"])
 
+    def test_document_session_is_created_and_reused(self):
+        first = self.client.post(f"/api/sessions/document/{self.document.id}/", {}, format="json")
+        second = self.client.post(f"/api/sessions/document/{self.document.id}/", {}, format="json")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(ChatSession.objects.filter(user=self.user, document=self.document).count(), 1)
+
+    def test_document_session_rejects_another_users_document(self):
+        another_user = get_user_model().objects.create_user(
+            username="other-document-owner",
+            password="strong-password",
+        )
+        another_document = Document.objects.create(
+            user=another_user,
+            session_id=uuid.uuid4(),
+            filename="private.txt",
+            file_path="/tmp/private.txt",
+            status="ready",
+        )
+
+        response = self.client.post(
+            f"/api/sessions/document/{another_document.id}/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
     @patch("chat.views.retrieve_chunks", return_value=([], [], [], False))
     @patch("chat.views.generate_answer", return_value=("Remembered answer", [], [], False))
     def test_query_persists_both_roles(self, generate_answer, retrieve_chunks):

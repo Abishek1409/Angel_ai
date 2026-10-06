@@ -140,6 +140,34 @@ def list_sessions(request):
         }, json_dumps_params={"default": str})
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def document_session(request, document_id):
+    try:
+        document = Document.objects.get(id=document_id, user=request.user)
+    except Document.DoesNotExist:
+        return JsonResponse({"error": "Document not found or access denied."}, status=404)
+
+    session = ChatSession.objects.filter(
+        user=request.user,
+        document=document,
+    ).order_by("-created_at").first()
+
+    if session is None:
+        session = ChatSession.objects.create(
+            user=request.user,
+            document=document,
+            title=document.filename,
+        )
+
+    return JsonResponse({
+        "id": str(session.id),
+        "title": session.title,
+        "document_id": str(document.id),
+        "created_at": session.created_at,
+    }, json_dumps_params={"default": str})
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def session_messages(request, session_id):

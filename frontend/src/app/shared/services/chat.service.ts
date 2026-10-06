@@ -61,6 +61,13 @@ export class ChatService {
     return this.http.get<{ sessions: ChatSession[] }>(`${environment.apiUrl}/api/sessions/`);
   }
 
+  getOrCreateDocumentSession(documentId: string): Observable<ChatSession> {
+    return this.http.post<ChatSession>(
+      `${environment.apiUrl}/api/sessions/document/${documentId}/`,
+      {}
+    );
+  }
+
   getSessionMessages(sessionId: string): Observable<{ messages: HistoryMessage[] }> {
     return this.http.get<{ messages: HistoryMessage[] }>(`${environment.apiUrl}/api/sessions/${sessionId}/messages/`);
   }

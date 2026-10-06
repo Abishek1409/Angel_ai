@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -36,56 +36,43 @@ export class AiFeaturesService {
 
   constructor(private http: HttpClient) {}
 
-  private getHeaders(): HttpHeaders {
-    const token = localStorage.getItem('access_token');
-    return new HttpHeaders({
-      'Authorization': `Bearer ${token}`
-    });
-  }
-
   // Flashcard endpoints
   getFlashcards(documentId: string): Observable<FlashcardsResponse> {
     return this.http.get<FlashcardsResponse>(
-      `${this.baseUrl}/${documentId}/flashcards/`,
-      { headers: this.getHeaders() }
+      `${this.baseUrl}/${documentId}/flashcards/`
     );
   }
 
   generateFlashcards(documentId: string): Observable<FlashcardsResponse> {
     return this.http.post<FlashcardsResponse>(
       `${this.baseUrl}/${documentId}/flashcards/generate/`,
-      {},
-      { headers: this.getHeaders() }
+      {}
     );
   }
 
   deleteFlashcards(documentId: string): Observable<{message: string}> {
     return this.http.delete<{message: string}>(
-      `${this.baseUrl}/${documentId}/flashcards/delete/`,
-      { headers: this.getHeaders() }
+      `${this.baseUrl}/${documentId}/flashcards/delete/`
     );
   }
 
   // Roadmap endpoints
   getRoadmap(documentId: string): Observable<RoadmapResponse> {
     return this.http.get<RoadmapResponse>(
-      `${this.baseUrl}/${documentId}/roadmap/`,
-      { headers: this.getHeaders() }
+      `${this.baseUrl}/${documentId}/roadmap/`
     );
   }
 
   generateRoadmap(documentId: string): Observable<RoadmapResponse> {
     return this.http.post<RoadmapResponse>(
       `${this.baseUrl}/${documentId}/roadmap/generate/`,
-      {},
-      { headers: this.getHeaders() }
+      {}
     );
   }
 
   deleteRoadmap(documentId: string): Observable<{message: string}> {
     return this.http.delete<{message: string}>(
-      `${this.baseUrl}/${documentId}/roadmap/delete/`,
-      { headers: this.getHeaders() }
+      `${this.baseUrl}/${documentId}/roadmap/delete/`
     );
   }
 }

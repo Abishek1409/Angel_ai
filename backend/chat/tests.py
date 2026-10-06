@@ -398,13 +398,29 @@ class ListDocumentsTests(TestCase):
             status="ready",
         )
 
-    def test_list_documents_for_session(self):
-        response = self.client.get("/api/documents/list/", {"session_id": self.session_id})
+    def test_list_documents_returns_all_documents_owned_by_user(self):
+        response = self.client.get("/api/documents/list/")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(len(data["documents"]), 1)
-        self.assertEqual(data["documents"][0]["filename"], "a.pdf")
+        self.assertEqual(len(data["documents"]), 2)
+        self.assertEqual(
+            {document["filename"] for document in data["documents"]},
+            {"a.pdf", "other.pdf"},
+        )
 
-    def test_list_requires_session_id(self):
+    def test_list_does_not_return_another_users_documents(self):
+        other_user = get_user_model().objects.create_user(
+            username="other-chat-list-user",
+            password="test-password",
+        )
+        Document.objects.create(
+            user=other_user,
+            session_id=uuid.uuid4(),
+            filename="private.pdf",
+            file_path="/tmp/private.pdf",
+            status="ready",
+        )
+
         response = self.client.get("/api/documents/list/")
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["documents"]), 2)

@@ -15,6 +15,15 @@
   place-items: center;
   color: var(--text-muted);
 }
+
+.workspace-error {
+  margin: 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid #f5c6c6;
+  border-radius: var(--radius-sm);
+  background: #fdf2f2;
+  color: var(--red);
+}
 .app-shell {
   min-height: 100vh;
   display: flex;

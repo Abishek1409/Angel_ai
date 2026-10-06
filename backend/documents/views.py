@@ -88,14 +88,8 @@ def document_status(request, document_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_documents(request):
-    """
-    List all documents for a given session_id.
-    """
-    session_id = request.GET.get("session_id")
-    if not session_id:
-        return JsonResponse({"error": "session_id is required."}, status=400)
-    
-    documents = Document.objects.filter(user=request.user, session_id=session_id).values(
+    """List all documents owned by the authenticated user."""
+    documents = Document.objects.filter(user=request.user).values(
         "id", "filename", "status", "created_at", "error_message"
     ).order_by("-created_at")
     

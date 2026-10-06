@@ -27,6 +27,7 @@ export class App implements OnInit {
   showDocumentList: boolean = false;
   documentListRefresh: number = 0;
   sessionHistoryRefresh = 0;
+  workspaceError = '';
   isReady = false;
 
   constructor(
@@ -117,13 +118,7 @@ export class App implements OnInit {
   }
 
   onDocumentReady(documentId: string): void {
-    this.documentId = documentId;
-    this.documentListRefresh += 1;
-    localStorage.setItem(DOCUMENT_KEY, documentId);
-    this.currentView = 'chat';
-    this.showDocumentList = true;
-    this.sessionHistoryRefresh += 1;
-    localStorage.setItem('angelai_show_sidebar', 'true');
+    this.openDocumentChat(documentId, true);
   }
 
   onSessionSelected(session: ChatSession): void {
@@ -151,13 +146,39 @@ export class App implements OnInit {
   }
 
   onDocumentSelected(documentId: string | null): void {
-    this.documentId = documentId;
-    if (documentId) {
-      localStorage.setItem(DOCUMENT_KEY, documentId);
-    } else {
+    if (!documentId) {
+      this.documentId = null;
+      this.sessionId = crypto.randomUUID();
+      localStorage.setItem(SESSION_KEY, this.sessionId);
       localStorage.removeItem(DOCUMENT_KEY);
+      this.currentView = 'chat';
+      this.workspaceError = '';
+      return;
     }
-    this.currentView = 'chat';
+
+    this.openDocumentChat(documentId);
+  }
+
+  private openDocumentChat(documentId: string, refreshDocuments = false): void {
+    this.workspaceError = '';
+    this.chatService.getOrCreateDocumentSession(documentId).subscribe({
+      next: (session) => {
+        this.documentId = documentId;
+        this.sessionId = session.id;
+        localStorage.setItem(SESSION_KEY, session.id);
+        localStorage.setItem(DOCUMENT_KEY, documentId);
+        this.currentView = 'chat';
+        this.showDocumentList = true;
+        this.sessionHistoryRefresh += 1;
+        if (refreshDocuments) {
+          this.documentListRefresh += 1;
+        }
+        localStorage.setItem('angelai_show_sidebar', 'true');
+      },
+      error: (err) => {
+        this.workspaceError = err?.error?.error || 'Could not open this document chat.';
+      }
+    });
   }
 
   onNewDocument(): void {

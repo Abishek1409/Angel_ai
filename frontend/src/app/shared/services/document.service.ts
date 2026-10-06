@@ -46,10 +46,8 @@ export class DocumentService {
     return this.http.get<StatusResponse>(`${this.apiUrl}/${documentId}/status/`);
   }
 
-  listDocuments(sessionId: string): Observable<ListResponse> {
-    return this.http.get<ListResponse>(`${this.apiUrl}/list/`, {
-      params: { session_id: sessionId }
-    });
+  listDocuments(): Observable<ListResponse> {
+    return this.http.get<ListResponse>(`${this.apiUrl}/list/`);
   }
 
   deleteDocument(documentId: string): Observable<{message: string}> {
