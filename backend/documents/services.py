@@ -28,6 +28,22 @@ def _get_gemini_api_key():
     return api_key
 
 
+def _embed_text(text: str, task_type: str) -> list[float]:
+    model = settings.GEMINI_EMBEDDING_MODEL.removeprefix("models/")
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent",
+        params={"key": _get_gemini_api_key()},
+        json={
+            "content": {"parts": [{"text": text}]},
+            "taskType": task_type,
+        },
+        timeout=60,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Gemini embedding API returned {response.status_code}: {response.text}")
+    return response.json()["embedding"]["values"]
+
+
 def _embed_texts(texts: list[str], task_type: str) -> list[list[float]]:
     model = settings.GEMINI_EMBEDDING_MODEL.removeprefix("models/")
     response = requests.post(
