@@ -1,0 +1,1 @@
+Built AngelAI: drop in a PDF, ask it anything and get answers with sources, then turn the same doc into flashcards and a flowchart. Studying from your own notes, minus the re-reading.
