@@ -97,12 +97,21 @@ GEMINI_EMBEDDING_MODEL = os.environ.get(
     "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"
 )
 
+# Hugging Face Inference (free token) - embedding fallback when Gemini fails
+HF_API_TOKEN = os.environ.get("HF_API_TOKEN", "")
+
 # Gemini API (used for embeddings and chat)
 GEMINI_CHAT_MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
 
 # Groq API (primary LLM provider for chat generation)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Groq rate limits are per model, so a second model often works when the primary is throttled
+GROQ_FALLBACK_MODELS = [
+    model.strip()
+    for model in os.environ.get("GROQ_FALLBACK_MODELS", "llama-3.1-8b-instant").split(",")
+    if model.strip()
+]
 
 # OpenRouter API (fallback LLM provider with multiple free models)
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
@@ -110,10 +119,9 @@ OPENROUTER_FREE_MODELS = [
     model.strip()
     for model in os.environ.get(
         "OPENROUTER_FREE_MODELS",
-        "meta-llama/llama-3.1-8b-instruct:free,"
-        "qwen/qwen-2.5-7b-instruct:free,"
-        "mistralai/mistral-7b-instruct:free,"
-        "x-ai/grok-beta:free"
+        "google/gemma-4-31b-it:free,"
+        "nvidia/nemotron-3-super-120b-a12b:free,"
+        "google/gemma-4-26b-a4b-it:free"
     ).split(",")
     if model.strip()
 ]

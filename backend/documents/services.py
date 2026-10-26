@@ -1,6 +1,7 @@
 import os
 import threading
 import math
+import time
 import logging
 import fitz  # PyMuPDF
 import requests
@@ -28,9 +29,28 @@ def _get_gemini_api_key():
     return api_key
 
 
+def _post_with_retry(url: str, retries: int = 3, **kwargs) -> requests.Response:
+    """POST with exponential backoff on rate limits / transient server errors."""
+    response = None
+    for attempt in range(retries):
+        try:
+            response = requests.post(url, **kwargs)
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            if attempt == retries - 1:
+                raise
+            logger.warning(f"Gemini request failed ({type(e).__name__}), retrying...")
+        else:
+            if response.status_code not in (429, 500, 502, 503, 504):
+                return response
+            logger.warning(f"Gemini returned {response.status_code}, retry {attempt + 1}/{retries}")
+        if attempt < retries - 1:
+            time.sleep(2 ** (attempt + 1))  # 2s, 4s
+    return response
+
+
 def _embed_text(text: str, task_type: str) -> list[float]:
     model = settings.GEMINI_EMBEDDING_MODEL.removeprefix("models/")
-    response = requests.post(
+    response = _post_with_retry(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent",
         params={"key": _get_gemini_api_key()},
         json={
@@ -46,7 +66,7 @@ def _embed_text(text: str, task_type: str) -> list[float]:
 
 def _embed_texts(texts: list[str], task_type: str) -> list[list[float]]:
     model = settings.GEMINI_EMBEDDING_MODEL.removeprefix("models/")
-    response = requests.post(
+    response = _post_with_retry(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents",
         params={"key": _get_gemini_api_key()},
         json={
@@ -67,6 +87,81 @@ def _embed_texts(texts: list[str], task_type: str) -> list[list[float]]:
     if len(embeddings) != len(texts):
         raise RuntimeError("Gemini batch embedding API returned an unexpected number of embeddings")
     return [embedding["values"] for embedding in embeddings]
+
+
+# Chroma collections must hold vectors of a single dimension, so Gemini (3072-d)
+# and the local fallback model (384-d) are stored in separate collections.
+GEMINI_COLLECTION = "all_documents"
+LOCAL_COLLECTION = "all_documents_local"
+DOCUMENT_COLLECTIONS = (GEMINI_COLLECTION, LOCAL_COLLECTION)
+
+_local_embedder = None
+
+_HF_EMBED_URL = (
+    "https://router.huggingface.co/hf-inference/models/"
+    "sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction"
+)
+
+
+def _hf_embed(texts: list[str]) -> list[list[float]]:
+    """
+    Hosted all-MiniLM-L6-v2 (free HF token). Same model as the local fallback,
+    so vectors share the 384-d space and live in LOCAL_COLLECTION.
+    """
+    token = (settings.HF_API_TOKEN or "").strip()
+    if not token or token.lower().startswith("your"):
+        raise RuntimeError("HF_API_TOKEN not configured")
+    embeddings: list[list[float]] = []
+    for i in range(0, len(texts), _EMBED_BATCH_SIZE):
+        batch = texts[i:i + _EMBED_BATCH_SIZE]
+        response = _post_with_retry(
+            _HF_EMBED_URL,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"inputs": batch, "options": {"wait_for_model": True}},
+            timeout=60,
+        )
+        if not response.ok:
+            raise RuntimeError(f"Hugging Face embedding API returned {response.status_code}: {response.text[:200]}")
+        vectors = response.json()
+        if not isinstance(vectors, list) or len(vectors) != len(batch):
+            raise RuntimeError("Hugging Face returned an unexpected number of embeddings")
+        embeddings.extend([list(map(float, v)) for v in vectors])
+    return embeddings
+
+
+def _onnx_embed(texts: list[str]) -> list[list[float]]:
+    """Free, keyless last resort: all-MiniLM-L6-v2 via ONNX, bundled with chromadb."""
+    global _local_embedder
+    if _local_embedder is None:
+        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+        _local_embedder = DefaultEmbeddingFunction()
+    return [list(map(float, v)) for v in _local_embedder(texts)]
+
+
+def _local_embed(texts: list[str]) -> list[list[float]]:
+    """384-d MiniLM embeddings: Hugging Face API first, local ONNX model if that fails."""
+    try:
+        return _hf_embed(texts)
+    except Exception as e:
+        logger.warning(f"Hugging Face embeddings unavailable ({e}); using local ONNX model")
+    return _onnx_embed(texts)
+
+
+def embed_chunks(chunks: list[str]) -> tuple[str, list[list[float]]]:
+    """
+    Embed chunks with Gemini, falling back to the local model if Gemini fails.
+
+    Returns:
+        (collection_name, embeddings) so callers store vectors with matching dimensions.
+    """
+    try:
+        embeddings: list[list[float]] = []
+        for i in range(0, len(chunks), _EMBED_BATCH_SIZE):
+            embeddings.extend(_embed_texts(chunks[i:i + _EMBED_BATCH_SIZE], "RETRIEVAL_DOCUMENT"))
+        return GEMINI_COLLECTION, embeddings
+    except Exception as e:
+        logger.warning(f"Gemini embeddings failed ({e}); using local embedding fallback")
+    return LOCAL_COLLECTION, _local_embed(chunks)
 
 
 def extract_text(file_path: str, filename: str, status_callback=None) -> str:
@@ -176,16 +271,13 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
         return
 
     try:
-        embeddings: list[list[float]] = []
-        for i in range(0, len(chunks), _EMBED_BATCH_SIZE):
-            batch = chunks[i:i + _EMBED_BATCH_SIZE]
-            embeddings.extend(_embed_texts(batch, "RETRIEVAL_DOCUMENT"))
+        collection_name, embeddings = embed_chunks(chunks)
     except Exception as e:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
     try:
         chroma = get_chroma_client()
-        collection = chroma.get_or_create_collection(name="all_documents")
+        collection = chroma.get_or_create_collection(name=collection_name)
         collection.upsert(
             ids=[f"{document_id}_chunk_{i}" for i in range(len(chunks))],
             documents=chunks,
@@ -248,15 +340,14 @@ def delete_document_from_chromadb(document_id: str) -> None:
     """
     try:
         chroma = get_chroma_client()
-        try:
-            collection = chroma.get_collection(name="all_documents")
-        except Exception:
-            return
-        
-        # Get all chunk IDs for this document
-        results = collection.get(where={"doc_id": {"$eq": document_id}})
-        
-        if results["ids"]:
-            collection.delete(ids=results["ids"])
+        for name in DOCUMENT_COLLECTIONS:
+            try:
+                collection = chroma.get_collection(name=name)
+            except Exception:
+                continue
+            # Get all chunk IDs for this document
+            results = collection.get(where={"doc_id": {"$eq": document_id}})
+            if results["ids"]:
+                collection.delete(ids=results["ids"])
     except Exception as e:
         raise RuntimeError(f"Failed to delete document from ChromaDB: {e}") from e

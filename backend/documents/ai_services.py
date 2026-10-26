@@ -1,76 +1,138 @@
 """
-AI-powered services for generating flashcards and roadmaps using Gemini.
+AI-powered services for generating flashcards and roadmaps.
+
+Provider chain: Groq (primary) -> Gemini -> OpenRouter free models.
 """
 import json
 import logging
 import re
 import requests
 from django.conf import settings
-from .services import _get_gemini_api_key
+from openai import OpenAI
 from config.chroma import get_chroma_client
+from .services import DOCUMENT_COLLECTIONS
 
 logger = logging.getLogger(__name__)
 
+_MAX_OUTPUT_TOKENS = 4096
 
-def _call_gemini_json(prompt: str, max_retries: int = 2) -> dict:
-    """
-    Call Gemini API with JSON mode for structured output.
-    
-    Args:
-        prompt: The prompt to send to Gemini.
-        max_retries: Number of retry attempts for malformed JSON.
-        
-    Returns:
-        Parsed JSON dict from Gemini response.
-        
-    Raises:
-        RuntimeError: If generation fails after retries.
-    """
+
+class DocumentTextMissing(RuntimeError):
+    """Raised when a document has no stored chunks (e.g. ChromaDB was wiped)."""
+
+
+def _parse_json(text: str):
+    """Parse model output as JSON, tolerating ```json fences and surrounding prose."""
+    text = (text or "").strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
+    if fenced:
+        text = fenced.group(1).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Fall back to the outermost {...} or [...] block
+        match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+        if not match:
+            raise
+        return json.loads(match.group(1))
+
+
+def _key(value: str) -> str:
+    """Treat empty or template placeholder keys (e.g. 'your-groq-key') as not configured."""
+    value = (value or "").strip()
+    return "" if not value or value.lower().startswith("your") else value
+
+
+def _groq_json(prompt: str, model: str) -> str:
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": _MAX_OUTPUT_TOKENS,
+            "response_format": {"type": "json_object"},  # top-level must be an object
+        },
+        timeout=60,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Groq {response.status_code}: {response.text[:300]}")
+    return response.json()["choices"][0]["message"]["content"]
+
+
+def _gemini_json(prompt: str) -> str:
     model = settings.GEMINI_CHAT_MODEL.removeprefix("models/")
-    
-    for attempt in range(max_retries):
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        params={"key": settings.GEMINI_API_KEY},
+        json={
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": _MAX_OUTPUT_TOKENS,
+                "responseMimeType": "application/json",
+                # 2.5 models spend output tokens on "thinking", which truncated the JSON
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        },
+        timeout=60,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Gemini {response.status_code}: {response.text[:300]}")
+    candidates = response.json().get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates")
+    return "".join(p.get("text", "") for p in candidates[0].get("content", {}).get("parts", []))
+
+
+def _openrouter_json(prompt: str, model_id: str) -> str:
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=settings.OPENROUTER_API_KEY)
+    completion = client.chat.completions.create(
+        model=model_id,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=_MAX_OUTPUT_TOKENS,
+        timeout=60,
+    )
+    return completion.choices[0].message.content or ""
+
+
+def _call_llm_json(prompt: str):
+    """
+    Generate structured JSON, falling through providers until one returns valid JSON.
+
+    Raises:
+        RuntimeError: If every configured provider fails.
+    """
+    # Order: Groq primary -> Groq fallback models -> Gemini -> OpenRouter free models
+    providers = []
+    if _key(settings.GROQ_API_KEY):
+        for model in [settings.GROQ_MODEL, *settings.GROQ_FALLBACK_MODELS]:
+            providers.append((f"Groq/{model}", lambda m=model: _groq_json(prompt, m)))
+    if _key(settings.GEMINI_API_KEY):
+        providers.append((f"Gemini/{settings.GEMINI_CHAT_MODEL}", lambda: _gemini_json(prompt)))
+    if _key(settings.OPENROUTER_API_KEY):
+        for model_id in settings.OPENROUTER_FREE_MODELS:
+            providers.append((f"OpenRouter/{model_id}", lambda m=model_id: _openrouter_json(prompt, m)))
+
+    if not providers:
+        raise RuntimeError(
+            "No AI provider configured. Set a real GROQ_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY."
+        )
+
+    errors = []
+    for name, call in providers:
         try:
-            response = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                params={"key": _get_gemini_api_key()},
-                json={
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.3,
-                        "maxOutputTokens": 2048,
-                        "responseMimeType": "application/json"  # Force JSON output
-                    },
-                },
-                timeout=60,
-            )
-            
-            if not response.ok:
-                raise RuntimeError(f"Gemini API error {response.status_code}: {response.text}")
-            
-            candidates = response.json().get("candidates", [])
-            if not candidates:
-                raise RuntimeError("Gemini returned no candidates")
-            
-            text_content = "".join(
-                part.get("text", "")
-                for part in candidates[0].get("content", {}).get("parts", [])
-            ).strip()
-            
-            # Parse JSON
-            parsed = json.loads(text_content)
-            logger.info(f"✓ Gemini JSON generation successful (attempt {attempt + 1})")
+            parsed = _parse_json(call())
+            logger.info(f"✓ JSON generation served by {name}")
             return parsed
-            
-        except json.JSONDecodeError as e:
-            logger.warning(f"Gemini returned malformed JSON (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt == max_retries - 1:
-                raise RuntimeError(f"Gemini failed to generate valid JSON after {max_retries} attempts")
         except Exception as e:
-            logger.error(f"Gemini generation error (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt == max_retries - 1:
-                raise RuntimeError(f"Failed to generate content: {str(e)}")
-    
-    raise RuntimeError("Unexpected error in Gemini JSON generation")
+            logger.warning(f"{name} failed ({type(e).__name__}): {e}")
+            # Short reason (e.g. "Groq 401: Invalid API Key") so the client error is diagnosable
+            errors.append(f"{name}: {str(e)[:120]}")
+
+    raise RuntimeError("All AI providers failed: " + "; ".join(errors))
 
 
 def _get_document_text_from_chromadb(document_id: str) -> str:
@@ -88,31 +150,35 @@ def _get_document_text_from_chromadb(document_id: str) -> str:
     """
     try:
         chroma_client = get_chroma_client()
-        collection = chroma_client.get_collection(name="all_documents")
-        
-        # Get all chunks for this document
-        results = collection.get(
-            where={"doc_id": {"$eq": document_id}},
-            include=["documents", "metadatas"]
-        )
-        
-        if not results["documents"]:
-            raise RuntimeError(f"No text chunks found for document {document_id}")
-        
-        # Sort by chunk_index to maintain order
+
+        # A document lives in the Gemini or the local-fallback collection
         chunks_with_index = []
-        for doc, meta in zip(results["documents"], results["metadatas"]):
-            chunk_index = meta.get("chunk_index", 0)
-            chunks_with_index.append((chunk_index, doc))
+        for name in DOCUMENT_COLLECTIONS:
+            try:
+                collection = chroma_client.get_collection(name=name)
+            except Exception:
+                continue
+            results = collection.get(
+                where={"doc_id": {"$eq": document_id}},
+                include=["documents", "metadatas"]
+            )
+            for doc, meta in zip(results["documents"], results["metadatas"]):
+                chunks_with_index.append((meta.get("chunk_index", 0), doc))
+
+        if not chunks_with_index:
+            raise DocumentTextMissing(f"No text chunks found for document {document_id}")
         
         chunks_with_index.sort(key=lambda x: x[0])
         full_text = "\n\n".join(chunk for _, chunk in chunks_with_index)
         
         logger.info(f"Retrieved {len(chunks_with_index)} chunks for document {document_id}")
         return full_text
-        
+
+    except DocumentTextMissing:
+        raise
     except Exception as e:
-        raise RuntimeError(f"Failed to retrieve document text: {e}") from e
+        # Missing collection means ChromaDB storage was reset (e.g. redeploy on ephemeral disk)
+        raise DocumentTextMissing(f"Failed to retrieve document text: {e}") from e
 
 
 def generate_flashcards(document_id: str, document_filename: str) -> list[dict]:
@@ -147,21 +213,21 @@ Instructions:
 - Each flashcard should have a clear question and a concise answer
 - Questions should be specific and test understanding, not just memorization
 - Answers should be complete but brief (1-3 sentences)
-- Return ONLY a JSON array in this exact format, no additional text:
-[
+- Return ONLY a JSON object in this exact format, no additional text:
+{{"flashcards": [
   {{"question": "What is...", "answer": "..."}},
-  {{"question": "How does...", "answer": "..."}},
-  ...
-]
+  {{"question": "How does...", "answer": "..."}}
+]}}
 
-Generate between 10 and 15 flashcards as a JSON array."""
+Generate between 10 and 15 flashcards."""
 
-    # Call Gemini with JSON mode
-    result = _call_gemini_json(prompt, max_retries=2)
-    
-    # Validate structure
+    result = _call_llm_json(prompt)
+
+    # Accept {"flashcards": [...]} or a bare list
+    if isinstance(result, dict):
+        result = result.get("flashcards", [])
     if not isinstance(result, list):
-        raise RuntimeError("Gemini did not return a list of flashcards")
+        raise RuntimeError("AI did not return a list of flashcards")
     
     flashcards = []
     for item in result:
@@ -263,15 +329,14 @@ Generate the roadmap as a JSON object with a "diagram" field."""
     # Try generating with retries
     for attempt in range(2):
         try:
-            result = _call_gemini_json(prompt, max_retries=1)
-            
-            # Extract diagram from JSON
+            result = _call_llm_json(prompt)
+
             if isinstance(result, dict) and "diagram" in result:
                 mermaid_def = result["diagram"]
             elif isinstance(result, str):
                 mermaid_def = result
             else:
-                raise RuntimeError("Gemini returned unexpected format")
+                raise RuntimeError("AI returned unexpected format")
             
             # Validate Mermaid syntax
             if _validate_mermaid_syntax(mermaid_def):

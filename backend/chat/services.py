@@ -5,7 +5,13 @@ import requests
 from openai import OpenAI
 from django.conf import settings
 from .cache import get_cached_embedding, cache_embedding, get_cached_response, cache_response
-from documents.services import _embed_text, _get_gemini_api_key
+from documents.services import (
+    _embed_text,
+    _get_gemini_api_key,
+    _local_embed,
+    GEMINI_COLLECTION,
+    LOCAL_COLLECTION,
+)
 from config.chroma import get_chroma_client
 
 _get_chroma_client = get_chroma_client
@@ -142,45 +148,52 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         Tuple of (chunk_texts, chunk_metadata_list, chunk_ids, cache_hit).
         Returns empty lists and False if no results.
     """
-    try:
-        chroma_client = _get_chroma_client()
-        collection = chroma_client.get_collection(name="all_documents")
-    except Exception:
-        return [], [], [], False
+    chroma_client = _get_chroma_client()
+    chunks, metadatas, ids = [], [], []
+    embedding_cache_hit = False
+    where_filter = {"doc_id": {"$eq": document_id}} if document_id else None
 
-    try:
-        collection_size = collection.count()
-        if collection_size == 0:
-            return [], [], [], False
+    # Each collection must be queried with embeddings from the model that built it
+    for name in (GEMINI_COLLECTION, LOCAL_COLLECTION):
+        try:
+            collection = chroma_client.get_collection(name=name)
+        except Exception:
+            continue
 
-        # Check cache for embedding using raw query text hash.
-        cached_embedding = get_cached_embedding(question)
-        embedding_cache_hit = cached_embedding is not None
+        try:
+            collection_size = collection.count()
+            if collection_size == 0:
+                continue
 
-        if cached_embedding:
-            question_embedding = cached_embedding
-        else:
-            try:
-                question_embedding = _embed_text(question, "RETRIEVAL_QUERY")
-                cache_embedding(question, question_embedding)
-            except Exception as e:
-                raise RuntimeError(f"Failed to embed question: {e}") from e
+            if name == GEMINI_COLLECTION:
+                # Cache only holds Gemini query embeddings
+                cached_embedding = get_cached_embedding(question)
+                if cached_embedding:
+                    embedding_cache_hit = True
+                    question_embedding = cached_embedding
+                else:
+                    try:
+                        question_embedding = _embed_text(question, "RETRIEVAL_QUERY")
+                        cache_embedding(question, question_embedding)
+                    except Exception as e:
+                        logger.warning(f"Gemini query embedding failed, skipping {name}: {e}")
+                        continue
+            else:
+                question_embedding = _local_embed([question])[0]
 
-        where_filter = {"doc_id": {"$eq": document_id}} if document_id else None
+            results = collection.query(
+                query_embeddings=[question_embedding],
+                n_results=min(top_k, collection_size),
+                where=where_filter,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to query ChromaDB: {e}") from e
 
-        results = collection.query(
-            query_embeddings=[question_embedding],
-            n_results=min(top_k, collection_size),
-            where=where_filter,
-        )
+        chunks += results["documents"][0] if results["documents"] else []
+        metadatas += results["metadatas"][0] if results["metadatas"] else []
+        ids += results["ids"][0] if results["ids"] else []
 
-        chunks = results["documents"][0] if results["documents"] else []
-        metadatas = results["metadatas"][0] if results["metadatas"] else []
-        ids = results["ids"][0] if results["ids"] else []
-
-        return chunks, metadatas, ids, embedding_cache_hit
-    except Exception as e:
-        raise RuntimeError(f"Failed to query ChromaDB: {e}") from e
+    return chunks[:top_k], metadatas[:top_k], ids[:top_k], embedding_cache_hit
 
 
 def generate_answer(

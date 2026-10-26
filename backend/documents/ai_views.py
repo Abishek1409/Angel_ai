@@ -9,9 +9,14 @@ from rest_framework.permissions import IsAuthenticated
 
 from .models import Document
 from .flashcard_models import Flashcard, Roadmap
-from .ai_services import generate_flashcards, generate_roadmap
+from .ai_services import generate_flashcards, generate_roadmap, DocumentTextMissing
 
 logger = logging.getLogger(__name__)
+
+_TEXT_MISSING_MSG = (
+    "This document's text is no longer available on the server (storage was reset). "
+    "Please re-upload the document."
+)
 
 
 @api_view(["POST"])
@@ -77,7 +82,10 @@ def create_flashcards(request, document_id):
                 for fc in flashcard_objects
             ]
         }, status=201)
-        
+
+    except DocumentTextMissing as e:
+        logger.warning(f"Flashcards: document text missing: {e}")
+        return JsonResponse({"error": _TEXT_MISSING_MSG}, status=409)
     except Exception as e:
         logger.error(f"Flashcard generation error: {str(e)}", exc_info=True)
         return JsonResponse(
@@ -200,7 +208,10 @@ def create_roadmap(request, document_id):
                 "updated_at": roadmap.updated_at.isoformat()
             }
         }, status=201)
-        
+
+    except DocumentTextMissing as e:
+        logger.warning(f"Roadmap: document text missing: {e}")
+        return JsonResponse({"error": _TEXT_MISSING_MSG}, status=409)
     except Exception as e:
         logger.error(f"Roadmap generation error: {str(e)}", exc_info=True)
         return JsonResponse(

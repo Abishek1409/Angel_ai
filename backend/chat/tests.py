@@ -182,7 +182,10 @@ class RetrieveChunksTests(TestCase):
             "ids": [["uuid1_chunk_0", "uuid1_chunk_1"]],
         }
         mock_client = MagicMock()
-        mock_client.get_collection.return_value = mock_collection
+        # Only the Gemini collection exists
+        mock_client.get_collection.side_effect = (
+            lambda name: mock_collection if name == "all_documents" else (_ for _ in ()).throw(Exception("missing"))
+        )
         mock_get_chroma.return_value = mock_client
 
         chunks, metadatas, ids, cache_hit = retrieve_chunks("what is this?")
@@ -201,7 +204,9 @@ class RetrieveChunksTests(TestCase):
             "ids": [["uuid1_chunk_0"]],
         }
         mock_client = MagicMock()
-        mock_client.get_collection.return_value = mock_collection
+        mock_client.get_collection.side_effect = (
+            lambda name: mock_collection if name == "all_documents" else (_ for _ in ()).throw(Exception("missing"))
+        )
 
         with patch("chat.services._get_chroma_client", return_value=mock_client):
             chunks, metadatas, ids, cache_hit = retrieve_chunks("cached question")
@@ -424,3 +429,33 @@ class ListDocumentsTests(TestCase):
         response = self.client.get("/api/documents/list/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["documents"]), 2)
+
+
+class LocalEmbeddingFallbackTests(TestCase):
+    @patch("documents.services._local_embed", return_value=[[0.5] * 4])
+    @patch("documents.services._embed_texts", side_effect=RuntimeError("Gemini 400: API key not valid"))
+    def test_embed_chunks_falls_back_to_local_when_gemini_fails(self, mock_gemini, mock_local):
+        from documents.services import embed_chunks, LOCAL_COLLECTION
+        collection, embeddings = embed_chunks(["some chunk"])
+        self.assertEqual(collection, LOCAL_COLLECTION)
+        self.assertEqual(embeddings, [[0.5] * 4])
+
+    @patch("chat.services._local_embed", return_value=[[0.5] * 4])
+    @patch("chat.services._get_chroma_client")
+    def test_retrieve_queries_local_collection(self, mock_get_chroma, mock_local):
+        local = MagicMock()
+        local.count.return_value = 1
+        local.query.return_value = {
+            "documents": [["local chunk"]],
+            "metadatas": [[{"source": "b.pdf"}]],
+            "ids": [["uuid2_chunk_0"]],
+        }
+        mock_client = MagicMock()
+        mock_client.get_collection.side_effect = (
+            lambda name: local if name == "all_documents_local" else (_ for _ in ()).throw(Exception("missing"))
+        )
+        mock_get_chroma.return_value = mock_client
+
+        chunks, _, ids, _ = retrieve_chunks("question")
+        self.assertEqual(chunks, ["local chunk"])
+        self.assertEqual(ids, ["uuid2_chunk_0"])
