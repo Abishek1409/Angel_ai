@@ -12,6 +12,8 @@ import { DocumentService, Document } from '../shared/services/document.service';
 export class DocumentListComponent implements OnInit, OnChanges {
   @Input() sessionId: string = '';
   @Input() refreshToken: number = 0;
+  /** Highlighted document, owned by the app shell; undefined falls back to the last click. */
+  @Input() activeDocumentId: string | null | undefined = undefined;
   @Output() documentSelected = new EventEmitter<string | null>();
   @Output() uploadNew = new EventEmitter<void>();
 

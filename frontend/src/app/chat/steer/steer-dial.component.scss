@@ -4,10 +4,13 @@
   display: flex;
   flex-direction: column;
   gap: .5rem;
-  padding: .6rem 1rem .4rem;
-  border-top: 1px solid var(--border);
-  background: var(--bg-card);
+  padding: .7rem 1rem .5rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 55%, var(--bg-card));
+  animation: steer-open .22s ease both;
 }
+
+@keyframes steer-open { from { opacity: 0; transform: translateY(6px); } }
 
 .steer__axes {
   display: flex;

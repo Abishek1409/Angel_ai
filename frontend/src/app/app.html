@@ -1,50 +1,94 @@
 @if (!isReady) {
-  <div class="auth-loading">Loading AngelAI...</div>
+  <div class="auth-loading">
+    <app-mascot [size]="72" [talk]="false" state="thinking" />
+    <span>Loading AngelAI…</span>
+  </div>
 } @else if (!auth.username()) {
   <app-theme-toggle class="floating-theme-toggle" />
   <app-auth (authenticated)="initializeWorkspace()" />
 } @else {
-<div class="app-shell">
-  <header class="app-header">
-    <div class="app-logo">
-      <app-mascot class="logo-mascot" [size]="34" [still]="true" [talk]="false" />
-      <span>AngelAI</span>
+<div class="shell" [class.shell--collapsed]="sidebarCollapsed" [class.shell--drawer]="drawerOpen">
+  <aside class="sidebar" aria-label="Sidebar">
+    <div class="sidebar__top">
+      <div class="brand">
+        <app-mascot [size]="24" [still]="true" [talk]="false" />
+        <span>AngelAI</span>
+      </div>
+      <button class="icon-btn" type="button" (click)="toggleSidebar()" aria-label="Close sidebar" title="Close sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+      </button>
     </div>
-    <div class="app-header__actions">
-      <app-theme-toggle />
-      <button class="logout-button" type="button" (click)="logout()">Sign out</button>
-    </div>
-  </header>
 
-  <main class="app-main" [class.app-main--with-sidebar]="showDocumentList">
-    <app-session-history
-      [refreshToken]="sessionHistoryRefresh"
-      (sessionSelected)="onSessionSelected($event)"
-      (sessionDeleted)="onSessionDeleted()"
-    />
-    @if (showDocumentList) {
+    <nav class="sidebar__actions">
+      <button class="side-action side-action--primary" type="button" (click)="onNewChat()">
+        <span class="side-action__icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </span>
+        New chat
+      </button>
+      <button class="side-action" type="button" (click)="onUploadNew(); drawerOpen = false">
+        <span class="side-action__icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </span>
+        Upload document
+      </button>
+    </nav>
+
+    <div class="sidebar__scroll">
       <app-document-list
         [sessionId]="sessionId"
         [refreshToken]="documentListRefresh"
-        (documentSelected)="onDocumentSelected($event)"
-        (uploadNew)="onUploadNew()"
+        [activeDocumentId]="currentView === 'chat' ? documentId : undefined"
+        (documentSelected)="onDocumentSelected($event); drawerOpen = false"
+        (uploadNew)="onUploadNew(); drawerOpen = false"
+      />
+      <app-session-history
+        [refreshToken]="sessionHistoryRefresh"
+        [activeSessionId]="currentView === 'chat' ? sessionId : ''"
+        (sessionSelected)="onSessionSelected($event); drawerOpen = false"
+        (sessionDeleted)="onSessionDeleted()"
+      />
+    </div>
+
+    <div class="sidebar__footer">
+      <div class="user-chip" [title]="auth.username()">
+        <span class="user-chip__avatar">{{ userInitial }}</span>
+        <span class="user-chip__name">{{ auth.username() }}</span>
+      </div>
+      <app-theme-toggle />
+      <button class="icon-btn" type="button" (click)="logout()" aria-label="Sign out" title="Sign out">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <div class="scrim" (click)="drawerOpen = false" aria-hidden="true"></div>
+
+  <main class="main">
+    <div class="main__bar">
+      <button class="icon-btn main__open" type="button" (click)="openSidebar()" aria-label="Open sidebar" title="Open sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+      </button>
+      <div class="main__brand">
+        <app-mascot [size]="24" [still]="true" [talk]="false" />
+        <span>AngelAI</span>
+      </div>
+    </div>
+
+    @if (workspaceError) {
+      <p class="workspace-error" role="alert">{{ workspaceError }}</p>
+    }
+    @if (currentView === 'upload') {
+      <div class="main__scroll">
+        <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
+      </div>
+    } @else if (currentView === 'chat') {
+      <app-chat
+        [documentId]="documentId"
+        [sessionId]="sessionId"
+        (newDocument)="onNewDocument()"
       />
     }
-
-    <div class="app-content">
-      @if (workspaceError) {
-        <p class="workspace-error" role="alert">{{ workspaceError }}</p>
-      }
-      @if (currentView === 'upload') {
-        <app-upload [sessionId]="sessionId" (documentReady)="onDocumentReady($event)" />
-      } @else if (currentView === 'chat') {
-        <app-chat
-          [documentId]="documentId"
-          [sessionId]="sessionId"
-          (newDocument)="onNewDocument()"
-        />
-      }
-    </div>
   </main>
 </div>
 }

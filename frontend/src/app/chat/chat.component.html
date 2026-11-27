@@ -1,102 +1,102 @@
 <div class="chat-wrap">
-  <!-- Toolbar -->
-  <div class="chat-toolbar">
-    <div class="chat-toolbar__tabs" role="tablist" aria-label="Document tools">
-      <button class="chat-toolbar__tab" [class.chat-toolbar__tab--active]="activeTab === 'chat'" [attr.aria-selected]="activeTab === 'chat'" role="tab" (click)="selectTab('chat')">Chat</button>
-      @if (documentId) {
-        <button class="chat-toolbar__tab" [class.chat-toolbar__tab--active]="activeTab === 'flashcards'" [attr.aria-selected]="activeTab === 'flashcards'" role="tab" (click)="selectTab('flashcards')">Flashcards</button>
-        <button class="chat-toolbar__tab" [class.chat-toolbar__tab--active]="activeTab === 'flowchart'" [attr.aria-selected]="activeTab === 'flowchart'" role="tab" (click)="selectTab('flowchart')">Flowchart</button>
-      }
+  @if (documentId) {
+    <div class="chat-tabs" role="tablist" aria-label="Document tools">
+      <button class="chat-tab" [class.chat-tab--active]="activeTab === 'chat'" [attr.aria-selected]="activeTab === 'chat'" role="tab" (click)="selectTab('chat')">Chat</button>
+      <button class="chat-tab" [class.chat-tab--active]="activeTab === 'flashcards'" [attr.aria-selected]="activeTab === 'flashcards'" role="tab" (click)="selectTab('flashcards')">Flashcards</button>
+      <button class="chat-tab" [class.chat-tab--active]="activeTab === 'flowchart'" [attr.aria-selected]="activeTab === 'flowchart'" role="tab" (click)="selectTab('flowchart')">Flowchart</button>
     </div>
-    <button class="new-doc-btn" type="button" (click)="onNewDocument()">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="12" y1="18" x2="12" y2="12"/>
-        <line x1="9" y1="15" x2="15" y2="15"/>
-      </svg>
-      New document
-    </button>
-  </div>
-
-  @if (activeTab === 'chat') {
-  <div class="chat-messages" aria-live="polite">
-    <div *ngIf="conversation.length === 0 && !isLoading" class="chat-empty">
-      <app-mascot [size]="92" />
-      <p>Ask a question about your document</p>
-      <span class="chat-empty__hint">Tip: set the dial below before you ask, or turn it while the answer is being written.</span>
-    </div>
-
-    <app-message
-      *ngFor="let msg of conversation"
-      [question]="msg.question"
-      [answer]="msg.answer"
-      [sources]="msg.sources || []"
-      [cached]="msg.cached || false"
-      [segments]="msg.segments || []"
-      [streaming]="msg.streaming || false"
-      [notSaved]="msg.notSaved || false"
-    ></app-message>
-
-    <div *ngIf="isThinking" class="chat-thinking">
-      <span></span><span></span><span></span>
-    </div>
-  </div>
-
-  <!-- Error -->
-  <div *ngIf="errorMessage" class="chat-error" role="alert">{{ errorMessage }}</div>
-
-  <!-- Live steering -->
-  @if (steerOpen) {
-    <app-steer-dial [values]="steering" [live]="!!liveMessage" (commit)="onSteer($event)" />
   }
 
-  <!-- Input -->
-  <form class="chat-input-wrap" (ngSubmit)="onSubmit()">
-    <button
-      class="chat-steer-toggle"
-      type="button"
-      [class.chat-steer-toggle--on]="steerOpen"
-      [attr.aria-pressed]="steerOpen"
-      aria-label="Show steering dial"
-      title="Steer answers"
-      (click)="steerOpen = !steerOpen"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 17a9 9 0 0 1 18 0"/>
-        <line x1="12" y1="17" x2="16.5" y2="10"/>
-        <circle cx="12" cy="17" r="1.5"/>
-      </svg>
-    </button>
-    <textarea
-      class="chat-input"
-      [(ngModel)]="question"
-      name="question"
-      placeholder="Ask a question…"
-      [disabled]="isLoading"
-      aria-label="Question input"
-      autocomplete="off"
-      rows="1"
-      (keydown.enter)="$event.preventDefault(); onSubmit()"
-    ></textarea>
-    @if (liveMessage) {
-      <button class="chat-send" type="button" aria-label="Stop answer" title="Stop" (click)="stopStreaming()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-      </button>
-    } @else {
-      <button
-        class="chat-send"
-        type="submit"
-        [disabled]="isDisabled"
-        aria-label="Send"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-      </button>
-    }
-  </form>
+  @if (activeTab === 'chat') {
+    <div class="chat-scroll" #scroller (scroll)="onScroll()">
+      <div class="chat-column" aria-live="polite">
+        @if (conversation.length === 0 && !isLoading) {
+          <div class="chat-hello">
+            <app-mascot [size]="96" />
+            <h1 class="chat-hello__title">{{ greeting }}</h1>
+            <p class="chat-hello__sub">
+              {{ documentId ? 'Ask anything about this document.' : 'Ask across all your uploaded documents.' }}
+            </p>
+            <div class="chat-hello__chips">
+              @for (s of suggestions; track s) {
+                <button class="chip" type="button" (click)="ask(s)">{{ s }}</button>
+              }
+            </div>
+          </div>
+        }
+
+        @for (msg of conversation; track $index; let last = $last) {
+          <app-message
+            [question]="msg.question"
+            [answer]="msg.answer"
+            [sources]="msg.sources || []"
+            [cached]="msg.cached || false"
+            [segments]="msg.segments || []"
+            [streaming]="msg.streaming || false"
+            [notSaved]="msg.notSaved || false"
+            [animate]="last"
+          />
+        }
+      </div>
+    </div>
+
+    <div class="composer-dock">
+      @if (errorMessage) {
+        <div class="chat-error" role="alert">{{ errorMessage }}</div>
+      }
+      <form class="composer" [class.composer--busy]="!!liveMessage" (ngSubmit)="onSubmit()">
+        @if (steerOpen) {
+          <app-steer-dial [values]="steering" [live]="!!liveMessage" (commit)="onSteer($event)" />
+        }
+        <textarea
+          #input
+          class="composer__input"
+          [(ngModel)]="question"
+          name="question"
+          [placeholder]="liveMessage ? 'Angel is answering…' : 'Ask AngelAI anything…'"
+          [disabled]="isLoading"
+          aria-label="Question input"
+          autocomplete="off"
+          rows="1"
+          (input)="autoGrow(input)"
+          (keydown.enter)="onEnter($event)"
+        ></textarea>
+        <div class="composer__bar">
+          <button
+            class="composer__steer"
+            type="button"
+            [class.composer__steer--on]="steerOpen"
+            [attr.aria-pressed]="steerOpen"
+            title="Steer how answers are written"
+            (click)="steerOpen = !steerOpen"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 17a9 9 0 0 1 18 0"/>
+              <line x1="12" y1="17" x2="16.5" y2="10"/>
+              <circle cx="12" cy="17" r="1.5"/>
+            </svg>
+            Steer
+            @if (steeredCount) {
+              <span class="composer__steer-count">{{ steeredCount }}</span>
+            }
+          </button>
+          <span class="composer__hint">Enter to send · Shift+Enter for a new line</span>
+          @if (liveMessage) {
+            <button class="composer__send composer__send--stop" type="button" aria-label="Stop answer" title="Stop" (click)="stopStreaming()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
+            </button>
+          } @else {
+            <button class="composer__send" type="submit" [disabled]="isDisabled" aria-label="Send">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"/>
+                <polyline points="5 12 12 5 19 12"/>
+              </svg>
+            </button>
+          }
+        </div>
+      </form>
+      <p class="composer-foot">AngelAI can make mistakes. Check important facts against your document.</p>
+    </div>
   } @else if (activeTab === 'flashcards' && documentId) {
     @defer (when activeTab === 'flashcards' && documentId) {
       <app-flashcards class="chat-feature-view" [documentId]="documentId" />

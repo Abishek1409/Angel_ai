@@ -2,6 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding: clamp(1.5rem, 8vh, 4.5rem) 1.25rem 2rem;
   animation: fade-up 0.4s ease both;
 }
 

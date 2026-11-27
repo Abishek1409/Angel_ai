@@ -11,6 +11,7 @@ import { ChatService, ChatSession } from '../shared/services/chat.service';
 })
 export class SessionHistoryComponent implements OnChanges {
   @Input() refreshToken = 0;
+  @Input() activeSessionId = '';
   @Output() sessionSelected = new EventEmitter<ChatSession>();
   @Output() sessionDeleted = new EventEmitter<void>();
   sessions: ChatSession[] = [];

@@ -1,18 +1,24 @@
-<aside class="session-history">
-  <div class="history-heading">
-    <span>Conversations</span>
-  </div>
+<section class="side-section" aria-label="Recent conversations">
+  <h3 class="side-section__title">Recents</h3>
   @if (!sessions.length) {
-    <p class="empty-history">Your conversations will appear here.</p>
+    <p class="side-section__note">Your chats will show up here.</p>
   } @else {
-    <div class="session-items">
-      @for (session of sessions; track session.id) {
-        <button class="session-item" [class.selected]="selectedId === session.id" (click)="select(session)">
-          <span class="session-title">{{ session.title }}</span>
-          <span class="session-date">{{ session.created_at | date:'MMM d, y' }}</span>
-          <span class="session-delete" role="button" tabindex="0" (click)="delete(session, $event)">Delete</span>
+    @for (session of sessions; track session.id) {
+      <div
+        class="side-row"
+        role="button"
+        tabindex="0"
+        [class.side-row--active]="(activeSessionId || selectedId) === session.id"
+        (click)="select(session)"
+        (keydown.enter)="select(session)"
+      >
+        <svg class="side-row__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="side-row__label" [title]="session.title">{{ session.title }}</span>
+        <span class="side-row__date">{{ session.created_at | date:'MMM d' }}</span>
+        <button class="side-row__action" type="button" (click)="delete(session, $event)" aria-label="Delete conversation" title="Delete conversation">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
-      }
-    </div>
+      </div>
+    }
   }
-</aside>
+</section>

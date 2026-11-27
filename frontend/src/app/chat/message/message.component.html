@@ -1,38 +1,54 @@
 <div class="msg">
   <div class="msg__user">
-    <div class="msg__avatar msg__avatar--user">You</div>
-    <div class="msg__bubble msg__bubble--user">{{ question }}</div>
+    <div class="msg__user-bubble">{{ question }}</div>
   </div>
-  <div class="msg__ai">
-    <div class="msg__avatar msg__avatar--ai">AI</div>
-    <div class="msg__bubble msg__bubble--ai" [attr.aria-busy]="streaming">@if (segments.length) {@for (seg of segments; track $index) {@if (seg.label) {<span class="msg__steer-mark" [attr.title]="'Steered: ' + seg.label">↳ {{ seg.label }}</span>}<span [class.msg__steered]="!!seg.label">{{ seg.text }}</span>}@if (streaming) {<span class="msg__caret" aria-hidden="true"></span>}} @else {<span>{{ answer }}</span>}
-      <div *ngIf="!streaming && ((sources && sources.length > 0) || (citations && citations.length > 0))" class="msg__sources">
-        @if (sources && sources.length > 0) {
-          <div class="msg__sources-label">Sources:</div>
-          <div class="msg__sources-list">
-            @for (source of sources; track $index; let last = $last) {
-              <span class="msg__source">{{ source }}<span *ngIf="!last">, </span></span>
+
+  <div class="msg__ai" [class.msg__ai--thinking]="thinking">
+    <div class="msg__avatar">
+      <app-mascot [size]="36" [state]="mood" [still]="!animate" [talk]="true" />
+    </div>
+
+    <div class="msg__body">
+      @if (thinking) {
+        <div class="msg__thinking" role="status">
+          <span class="msg__thinking-text">{{ thinkingLine() }}</span>
+          <span class="msg__pixel-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        </div>
+      } @else {
+        <div class="msg__text" [attr.aria-busy]="streaming">@if (segments.length) {@for (seg of segments; track $index) {@if (seg.label) {<span class="msg__steer-mark" [attr.title]="'Steered: ' + seg.label">↳ {{ seg.label }}</span>}<span [class.msg__steered]="!!seg.label">{{ seg.text }}</span>}@if (streaming) {<span class="msg__caret" aria-hidden="true"></span>}} @else {<span>{{ answer }}</span>}</div>
+
+        @if (!streaming) {
+          @if ((sources && sources.length > 0) || (citations && citations.length > 0)) {
+            <div class="msg__sources">
+              @for (source of sources; track $index) {
+                <span class="msg__source" [title]="source">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  {{ source }}
+                </span>
+              }
+              @for (cite of citations; track $index) {
+                <span class="msg__source msg__source--cite">{{ cite.source }} · chunk {{ cite.chunk_index }}</span>
+              }
+            </div>
+          }
+
+          <div class="msg__actions">
+            <button class="msg__action" type="button" (click)="copy()" [attr.aria-label]="copied() ? 'Copied' : 'Copy answer'" [title]="copied() ? 'Copied' : 'Copy'">
+              @if (copied()) {
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              } @else {
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              }
+            </button>
+            @if (cached) {
+              <span class="msg__tag">⚡ cached</span>
+            }
+            @if (notSaved) {
+              <span class="msg__tag">Stopped early · not saved to history</span>
             }
           </div>
         }
-        @if (citations && citations.length > 0) {
-          <div class="msg__citations-detail">
-            @for (cite of citations; track $index) {
-              <div class="msg__citation">
-                <span class="msg__citation-source">{{ cite.source }}</span>
-                <span class="msg__citation-chunk">chunk {{ cite.chunk_index }}</span>
-              </div>
-            }
-          </div>
-        }
-      </div>
-      <div *ngIf="notSaved" class="msg__unsaved">Stopped early · this answer wasn't saved to history</div>
-      <div *ngIf="cached" class="msg__cache-badge">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
-        Cached
-      </div>
+      }
     </div>
   </div>
 </div>

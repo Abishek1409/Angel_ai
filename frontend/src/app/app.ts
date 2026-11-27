@@ -32,6 +32,41 @@ export class App implements OnInit {
   sessionHistoryRefresh = 0;
   workspaceError = '';
   isReady = false;
+  /** Desktop: sidebar hidden. Mobile uses `drawerOpen` instead. */
+  sidebarCollapsed = localStorage.getItem('angelai_sidebar_collapsed') === 'true';
+  drawerOpen = false;
+
+  get userInitial(): string {
+    return (this.auth.username() || '?').charAt(0).toUpperCase();
+  }
+
+  toggleSidebar(): void {
+    if (this.isMobile()) {
+      this.drawerOpen = false;
+      return;
+    }
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    localStorage.setItem('angelai_sidebar_collapsed', String(this.sidebarCollapsed));
+  }
+
+  openSidebar(): void {
+    if (this.isMobile()) {
+      this.drawerOpen = true;
+      return;
+    }
+    this.sidebarCollapsed = false;
+    localStorage.setItem('angelai_sidebar_collapsed', 'false');
+  }
+
+  /** Fresh conversation across all documents, like Claude's "New chat". */
+  onNewChat(): void {
+    this.drawerOpen = false;
+    this.onDocumentSelected(null);
+  }
+
+  private isMobile(): boolean {
+    return window.matchMedia('(max-width: 760px)').matches;
+  }
 
   constructor(
     public auth: AuthService,
