@@ -1,0 +1,68 @@
+<div class="steer" [class.steer--live]="live">
+  <div class="steer__axes" role="tablist" aria-label="Steering axes">
+    @for (a of axes; track a.key) {
+      <button
+        type="button"
+        role="tab"
+        class="steer__chip"
+        [class.steer__chip--active]="a.key === activeKey"
+        [class.steer__chip--steered]="isSteered(a.key)"
+        [attr.aria-selected]="a.key === activeKey"
+        (click)="selectAxis(a.key)"
+      >
+        <span class="steer__chip-meter" aria-hidden="true">
+          <span [style.left.%]="values[a.key]"></span>
+        </span>
+        {{ a.label }}
+      </button>
+    }
+    <button type="button" class="steer__reset" (click)="reset()" [disabled]="changedCount === 0">Reset</button>
+  </div>
+
+  <div class="steer__dial-wrap">
+    <svg
+      #svg
+      class="steer__dial"
+      [class.steer__dial--dragging]="dragging"
+      viewBox="0 0 240 140"
+      role="slider"
+      tabindex="0"
+      [attr.aria-label]="axis.label + ' from ' + axis.low + ' to ' + axis.high"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="value"
+      [attr.aria-valuetext]="readout"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp()"
+      (pointercancel)="onPointerUp()"
+      (keydown)="onKeyDown($event)"
+    >
+      <path class="steer__track" [attr.d]="trackPath" />
+      @for (t of ticks; track t) {
+        <line
+          class="steer__tick"
+          [class.steer__tick--mid]="t === 50"
+          [attr.x1]="point(t, 86).x" [attr.y1]="point(t, 86).y"
+          [attr.x2]="point(t, 99).x" [attr.y2]="point(t, 99).y"
+        />
+      }
+      <path class="steer__active" [attr.d]="activePath" />
+      <line class="steer__needle" [attr.x1]="center.x" [attr.y1]="center.y" [attr.x2]="knob.x" [attr.y2]="knob.y" />
+      <circle class="steer__hub" [attr.cx]="center.x" [attr.cy]="center.y" r="3.5" />
+      <circle class="steer__knob" [attr.cx]="knob.x" [attr.cy]="knob.y" r="7" />
+      <text class="steer__pole" x="22" y="136" text-anchor="start">{{ axis.low }}</text>
+      <text class="steer__pole" x="218" y="136" text-anchor="end">{{ axis.high }}</text>
+    </svg>
+    <div class="steer__readout">
+      <span class="steer__readout-text">{{ readout }}</span>
+      <span class="steer__hint">
+        @if (live) {
+          <span class="steer__live-dot" aria-hidden="true"></span> Release to steer the answer as it's written
+        } @else {
+          Drag the dial · applies to your next answer and steers it live
+        }
+      </span>
+    </div>
+  </div>
+</div>

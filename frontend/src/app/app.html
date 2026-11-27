@@ -1,7 +1,7 @@
 @if (!isReady) {
   <div class="auth-loading">Loading AngelAI...</div>
 } @else if (!auth.username()) {
-  <app-auth />
+  <app-auth (authenticated)="initializeWorkspace()" />
 } @else {
 <div class="app-shell">
   <header class="app-header">

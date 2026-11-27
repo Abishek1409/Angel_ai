@@ -5,9 +5,8 @@
   </div>
   <div class="msg__ai">
     <div class="msg__avatar msg__avatar--ai">AI</div>
-    <div class="msg__bubble msg__bubble--ai">
-      {{ answer }}
-      <div *ngIf="(sources && sources.length > 0) || (citations && citations.length > 0)" class="msg__sources">
+    <div class="msg__bubble msg__bubble--ai" [attr.aria-busy]="streaming">@if (segments.length) {@for (seg of segments; track $index) {@if (seg.label) {<span class="msg__steer-mark" [attr.title]="'Steered: ' + seg.label">↳ {{ seg.label }}</span>}<span [class.msg__steered]="!!seg.label">{{ seg.text }}</span>}@if (streaming) {<span class="msg__caret" aria-hidden="true"></span>}} @else {<span>{{ answer }}</span>}
+      <div *ngIf="!streaming && ((sources && sources.length > 0) || (citations && citations.length > 0))" class="msg__sources">
         @if (sources && sources.length > 0) {
           <div class="msg__sources-label">Sources:</div>
           <div class="msg__sources-list">
@@ -27,6 +26,7 @@
           </div>
         }
       </div>
+      <div *ngIf="notSaved" class="msg__unsaved">Stopped early · this answer wasn't saved to history</div>
       <div *ngIf="cached" class="msg__cache-badge">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>

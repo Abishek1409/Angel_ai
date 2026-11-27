@@ -184,6 +184,25 @@
   }
 }
 
+.chat-steer-toggle {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+
+  &:hover { color: var(--text); border-color: var(--border-focus); }
+  &:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+  &--on { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+}
+
 .chat-feature-view {
   display: block;
   min-height: 0;

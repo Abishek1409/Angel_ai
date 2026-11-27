@@ -49,7 +49,8 @@ export class App implements OnInit {
     this.auth.logout().subscribe({ error: () => this.auth.clearSession() });
   }
 
-  private initializeWorkspace(): void {
+  /** Restore or create this user's session. Runs after a page-load token refresh and after logging in. */
+  initializeWorkspace(): void {
     const savedSessionId = localStorage.getItem(SESSION_KEY);
     const savedDocumentId = localStorage.getItem(DOCUMENT_KEY);
     const savedSidebarState = localStorage.getItem('angelai_show_sidebar');

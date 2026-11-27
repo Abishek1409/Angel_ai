@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from './auth.service';
 
@@ -15,6 +15,8 @@ export class AuthComponent {
   password = '';
   error = '';
   busy = false;
+  /** Fires after a successful login or sign-up. */
+  @Output() authenticated = new EventEmitter<void>();
 
   constructor(private auth: AuthService) {}
 
@@ -25,6 +27,7 @@ export class AuthComponent {
       ? this.auth.login(this.username, this.password)
       : this.auth.register(this.username, this.password);
     action.subscribe({
+      next: () => this.authenticated.emit(),
       error: (error) => {
         this.error = error.error?.error || 'Authentication failed.';
         this.busy = false;
