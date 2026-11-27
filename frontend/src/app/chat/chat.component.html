@@ -22,7 +22,9 @@
   @if (activeTab === 'chat') {
   <div class="chat-messages" aria-live="polite">
     <div *ngIf="conversation.length === 0 && !isLoading" class="chat-empty">
+      <app-mascot [size]="92" />
       <p>Ask a question about your document</p>
+      <span class="chat-empty__hint">Tip: set the dial below before you ask, or turn it while the answer is being written.</span>
     </div>
 
     <app-message

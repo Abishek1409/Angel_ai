@@ -1,11 +1,12 @@
 import { Component, EventEmitter, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from './auth.service';
+import { MascotComponent } from '../shared/mascot/mascot.component';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, MascotComponent],
   templateUrl: './auth.component.html',
   styleUrl: './auth.component.scss'
 })

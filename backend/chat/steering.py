@@ -53,6 +53,38 @@ AXES = {
 
 DEFAULT_STEERING = {key: 50 for key in AXES}
 
+# Typographic characters models like to emit that render poorly or invisibly in
+# some fonts; swapped for plain equivalents so answers read cleanly.
+_TIDY_MAP = str.maketrans({
+    "‐": "-",  # hyphen
+    "‑": "-",  # non-breaking hyphen
+    "‒": "-",  # figure dash
+    " ": " ",  # no-break space
+    " ": " ",  # narrow no-break space
+    " ": " ",  # figure space
+    "​": "",   # zero-width space
+    "⁠": "",   # word joiner
+    "﻿": "",   # stray BOM
+})
+
+
+def tidy_text(text: str) -> str:
+    return text.translate(_TIDY_MAP)
+
+
+def repair_mojibake(text: str) -> str:
+    """
+    Undo UTF-8 text that was decoded as Latin-1 (e.g. "crossâ\\x80\\x91platform").
+    Answers saved before the stream decoding fix look like this. Text that isn't
+    mojibake fails the round trip and is returned untouched.
+    """
+    if not text or "â" not in text and "Ã" not in text:
+        return text
+    try:
+        return tidy_text(text.encode("latin-1").decode("utf-8"))
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+
 
 def normalize_steering(raw) -> dict:
     """Clamp incoming dial values to 0-100, falling back to neutral for bad input."""
@@ -132,7 +164,11 @@ def _groq_stream(prompt: str):
 
     def tokens():
         try:
-            for line in response.iter_lines(decode_unicode=True):
+            # Iterate raw bytes and decode as UTF-8 ourselves: the stream has no charset,
+            # so decode_unicode=True would fall back to Latin-1 and garble any non-ASCII
+            # character (e.g. a non-breaking hyphen became "â€‘").
+            for raw in response.iter_lines():
+                line = raw.decode("utf-8", errors="replace") if raw else ""
                 if not line or not line.startswith("data:"):
                     continue
                 data = line[5:].strip()
@@ -143,7 +179,7 @@ def _groq_stream(prompt: str):
                 except (ValueError, KeyError, IndexError):
                     continue
                 if delta:
-                    yield delta
+                    yield tidy_text(delta)
         finally:
             response.close()
 
@@ -165,7 +201,7 @@ def _openrouter_stream(prompt: str, model_id: str):
         try:
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                    yield tidy_text(chunk.choices[0].delta.content)
         finally:
             stream.close()
 

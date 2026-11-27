@@ -1,17 +1,19 @@
 @if (!isReady) {
   <div class="auth-loading">Loading AngelAI...</div>
 } @else if (!auth.username()) {
+  <app-theme-toggle class="floating-theme-toggle" />
   <app-auth (authenticated)="initializeWorkspace()" />
 } @else {
 <div class="app-shell">
   <header class="app-header">
     <div class="app-logo">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" class="logo-icon">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <app-mascot class="logo-mascot" [size]="34" [still]="true" [talk]="false" />
       <span>AngelAI</span>
     </div>
-    <button class="logout-button" type="button" (click)="logout()">Sign out</button>
+    <div class="app-header__actions">
+      <app-theme-toggle />
+      <button class="logout-button" type="button" (click)="logout()">Sign out</button>
+    </div>
   </header>
 
   <main class="app-main" [class.app-main--with-sidebar]="showDocumentList">

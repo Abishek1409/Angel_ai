@@ -1,7 +1,8 @@
-import { Component, Input, OnInit, OnChanges, AfterViewInit, ElementRef, ViewChild, SimpleChanges } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, AfterViewInit, ElementRef, ViewChild, SimpleChanges, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AiFeaturesService, Roadmap } from '../shared/services/ai-features.service';
 import mermaid from 'mermaid';
+import { ThemeService } from '../shared/services/theme.service';
 
 @Component({
   selector: 'app-roadmap',
@@ -20,13 +21,21 @@ export class RoadmapComponent implements OnInit, OnChanges, AfterViewInit {
   errorMessage: string = '';
   renderError: string = '';
 
+  private themeService = inject(ThemeService);
+
   constructor(private aiService: AiFeaturesService) {
-    // Initialize Mermaid
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
+    // Re-render the diagram in Mermaid's matching theme whenever the app theme changes
+    effect(() => {
+      const theme = this.themeService.theme();
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'loose',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      });
+      if (this.roadmap) {
+        this.renderMermaid();
+      }
     });
   }
 

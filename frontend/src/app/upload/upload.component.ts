@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MascotComponent } from '../shared/mascot/mascot.component';
 import { DocumentService, UploadResponse } from '../shared/services/document.service';
 import { HttpEventType } from '@angular/common/http';
 import { Subscription, timer } from 'rxjs';
@@ -22,7 +23,7 @@ interface QueuedUpload {
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MascotComponent],
   templateUrl: './upload.component.html',
   styleUrl: './upload.component.scss'
 })

@@ -13,13 +13,48 @@
   --text-muted:   #8a7f74;
   --text-light:   #b5a99a;
   --accent:       #c96442;
+  --accent-hover: #b0532f;
   --accent-light: #f5ede8;
+  --accent-border: rgba(201, 100, 66, 0.22);
+  --on-accent:    #ffffff;
+  --text-inverse: #ffffff;
   --green:        #3d7a5e;
+  --amber:        #b7791f;
   --red:          #c0392b;
+  --red-light:    #fdf2f2;
+  --red-border:   #f5c6c6;
   --radius:       12px;
   --radius-sm:    8px;
   --shadow:       0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md:    0 4px 12px rgba(0,0,0,0.08);
+  color-scheme: light;
+}
+
+/* Dark theme: warm ink, same accent family */
+:root[data-theme="dark"] {
+  --bg:           #131210;
+  --bg-card:      #1c1a17;
+  --bg-user:      #2a2622;
+  --bg-ai:        #1c1a17;
+  --border:       #322d27;
+  --border-focus: #5e5246;
+  --text:         #efe9e1;
+  --text-muted:   #a99c8d;
+  --text-light:   #75695d;
+  --accent:       #e5825c;
+  --accent-hover: #f09670;
+  --accent-light: #36241c;
+  --accent-border: rgba(229, 130, 92, 0.3);
+  --on-accent:    #1a0f0a;
+  --text-inverse: #131210;
+  --green:        #6cbf98;
+  --amber:        #e0a94a;
+  --red:          #f07563;
+  --red-light:    #2e1a17;
+  --red-border:   #5a2a24;
+  --shadow:       0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md:    0 6px 18px rgba(0,0,0,0.45);
+  color-scheme: dark;
 }
 
 html, body {
@@ -35,3 +70,37 @@ html, body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* ── Ink-splash theme transition ─────────────────────────────
+   ThemeService sets --ink-mask (a random splat SVG), the origin and the
+   final radius, then starts a View Transition. The new theme is revealed
+   through the splat as it grows from the toggle button. */
+@property --ink-r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+html.ink-transition::view-transition-old(root),
+html.ink-transition::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.ink-transition::view-transition-new(root) {
+  -webkit-mask-image: var(--ink-mask);
+          mask-image: var(--ink-mask);
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-size: calc(var(--ink-r) * 2) calc(var(--ink-r) * 2);
+          mask-size: calc(var(--ink-r) * 2) calc(var(--ink-r) * 2);
+  -webkit-mask-position: calc(var(--ink-x) - var(--ink-r)) calc(var(--ink-y) - var(--ink-r));
+          mask-position: calc(var(--ink-x) - var(--ink-r)) calc(var(--ink-y) - var(--ink-r));
+  animation: ink-spread 1.25s cubic-bezier(0.55, 0.05, 0.25, 1) forwards;
+}
+
+@keyframes ink-spread {
+  0%   { --ink-r: 0px; }
+  18%  { --ink-r: calc(var(--ink-r-end) * 0.12); }
+  100% { --ink-r: var(--ink-r-end); }
+}

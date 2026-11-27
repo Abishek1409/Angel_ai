@@ -11,7 +11,14 @@ from documents.models import Document
 from documents.services import delete_document_from_chromadb
 from .models import ChatMessage, ChatSession
 from .services import retrieve_chunks, generate_answer
-from .steering import build_steered_prompt, normalize_steering, stream_llm
+from .steering import build_steered_prompt, normalize_steering, repair_mojibake, stream_llm
+
+
+def _message_list(session):
+    messages = list(session.messages.values("id", "role", "content", "created_at"))
+    for message in messages:
+        message["content"] = repair_mojibake(message["content"])
+    return messages
 
 
 class ChatRequestError(Exception):
@@ -72,7 +79,7 @@ def _prepare_chat(request, body):
     history_lines = []
     history_length = 0
     for message in reversed(previous_messages):
-        line = f"{message['role'].capitalize()}: {message['content']}\n"
+        line = f"{message['role'].capitalize()}: {repair_mojibake(message['content'])}\n"
         if history_length + len(line) > 8000:
             break
         history_lines.insert(0, line)
@@ -213,9 +220,7 @@ def history(request, document_id):
     except (ChatSession.DoesNotExist, ValueError):
         return JsonResponse({"messages": []})
 
-    messages = session.messages.values("id", "role", "content", "created_at")
-
-    return JsonResponse({"messages": list(messages)}, json_dumps_params={"default": str})
+    return JsonResponse({"messages": _message_list(session)}, json_dumps_params={"default": str})
 
 
 @api_view(["GET"])
@@ -272,7 +277,7 @@ def session_messages(request, session_id):
         return JsonResponse({"error": "Session not found."}, status=404)
 
     return JsonResponse({
-        "messages": list(session.messages.values("id", "role", "content", "created_at")),
+        "messages": _message_list(session),
     }, json_dumps_params={"default": str})
 
 

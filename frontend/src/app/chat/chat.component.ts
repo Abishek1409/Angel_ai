@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService, SteeringValues } from '../shared/services/chat.service';
 import { MessageComponent } from './message/message.component';
+import { MascotComponent } from '../shared/mascot/mascot.component';
 import { SteerDialComponent, STEER_AXES, describeAxis, neutralSteering } from './steer/steer-dial.component';
 import { FlashcardsComponent } from '../flashcards/flashcards.component';
 import { RoadmapComponent } from '../roadmap/roadmap.component';
@@ -34,7 +35,7 @@ export interface AnswerSegment {
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, MessageComponent, SteerDialComponent, FlashcardsComponent, RoadmapComponent],
+  imports: [CommonModule, FormsModule, MessageComponent, SteerDialComponent, MascotComponent, FlashcardsComponent, RoadmapComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })

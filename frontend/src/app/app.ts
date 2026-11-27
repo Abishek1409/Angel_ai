@@ -7,6 +7,9 @@ import { AuthComponent } from './auth/auth.component';
 import { AuthService } from './auth/auth.service';
 import { SessionHistoryComponent } from './sessions/session-history.component';
 import { ChatService, ChatSession } from './shared/services/chat.service';
+import { ThemeService } from './shared/services/theme.service';
+import { ThemeToggleComponent } from './shared/theme-toggle/theme-toggle.component';
+import { MascotComponent } from './shared/mascot/mascot.component';
 
 const SESSION_KEY = 'angelai_session';
 const DOCUMENT_KEY = 'angelai_document';
@@ -16,7 +19,7 @@ type AppView = 'upload' | 'chat' | 'documents';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, UploadComponent, ChatComponent, DocumentListComponent, AuthComponent, SessionHistoryComponent],
+  imports: [CommonModule, UploadComponent, ChatComponent, DocumentListComponent, AuthComponent, SessionHistoryComponent, ThemeToggleComponent, MascotComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -33,6 +36,8 @@ export class App implements OnInit {
   constructor(
     public auth: AuthService,
     private chatService: ChatService,
+    // Injected so the saved theme is applied at startup
+    readonly theme: ThemeService,
   ) {}
 
   ngOnInit(): void {

@@ -32,6 +32,34 @@ class SteeringPromptTests(TestCase):
         self.assertIn("Continue the answer", prompt)
 
 
+class TextCleanupTests(TestCase):
+    def test_groq_stream_decodes_utf8_without_charset(self):
+        from unittest.mock import MagicMock
+        from chat.steering import _groq_stream
+
+        delta = json.dumps({"choices": [{"delta": {"content": "cross‑platform ’s"}}]})
+        fake = MagicMock(ok=True)
+        fake.iter_lines.return_value = [f"data: {delta}".encode("utf-8"), b"", b"data: [DONE]"]
+        with patch("chat.steering.requests.post", return_value=fake), \
+             patch("chat.steering.settings") as mock_settings:
+            mock_settings.GROQ_API_KEY = "k"
+            mock_settings.GROQ_MODEL = "m"
+            text = "".join(_groq_stream("prompt"))
+        self.assertEqual(text, "cross-platform ’s")
+
+    def test_repair_mojibake_fixes_latin1_decoded_text(self):
+        from chat.steering import repair_mojibake
+
+        garbled = "cross‑platform and learner’s".encode("utf-8").decode("latin-1")
+        self.assertEqual(repair_mojibake(garbled), "cross-platform and learner’s")
+
+    def test_repair_mojibake_leaves_normal_text_alone(self):
+        from chat.steering import repair_mojibake
+
+        for text in ["plain answer", "pâté recipe", "already fine ’ —"]:
+            self.assertEqual(repair_mojibake(text), text)
+
+
 class StreamQueryViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
