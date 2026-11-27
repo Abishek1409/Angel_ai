@@ -31,9 +31,12 @@
       [answer]="msg.answer"
       [sources]="msg.sources || []"
       [cached]="msg.cached || false"
+      [segments]="msg.segments || []"
+      [streaming]="msg.streaming || false"
+      [notSaved]="msg.notSaved || false"
     ></app-message>
 
-    <div *ngIf="isLoading" class="chat-thinking">
+    <div *ngIf="isThinking" class="chat-thinking">
       <span></span><span></span><span></span>
     </div>
   </div>
@@ -41,8 +44,28 @@
   <!-- Error -->
   <div *ngIf="errorMessage" class="chat-error" role="alert">{{ errorMessage }}</div>
 
+  <!-- Live steering -->
+  @if (steerOpen) {
+    <app-steer-dial [values]="steering" [live]="!!liveMessage" (commit)="onSteer($event)" />
+  }
+
   <!-- Input -->
   <form class="chat-input-wrap" (ngSubmit)="onSubmit()">
+    <button
+      class="chat-steer-toggle"
+      type="button"
+      [class.chat-steer-toggle--on]="steerOpen"
+      [attr.aria-pressed]="steerOpen"
+      aria-label="Show steering dial"
+      title="Steer answers"
+      (click)="steerOpen = !steerOpen"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 17a9 9 0 0 1 18 0"/>
+        <line x1="12" y1="17" x2="16.5" y2="10"/>
+        <circle cx="12" cy="17" r="1.5"/>
+      </svg>
+    </button>
     <textarea
       class="chat-input"
       [(ngModel)]="question"
@@ -54,17 +77,23 @@
       rows="1"
       (keydown.enter)="$event.preventDefault(); onSubmit()"
     ></textarea>
-    <button
-      class="chat-send"
-      type="submit"
-      [disabled]="isDisabled"
-      aria-label="Send"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="22" y1="2" x2="11" y2="13"/>
-        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-      </svg>
-    </button>
+    @if (liveMessage) {
+      <button class="chat-send" type="button" aria-label="Stop answer" title="Stop" (click)="stopStreaming()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+      </button>
+    } @else {
+      <button
+        class="chat-send"
+        type="submit"
+        [disabled]="isDisabled"
+        aria-label="Send"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    }
   </form>
   } @else if (activeTab === 'flashcards' && documentId) {
     @defer (when activeTab === 'flashcards' && documentId) {

@@ -19,4 +19,8 @@ export class MessageComponent {
     chunk_index?: number;
   }> = [];
   @Input() cached: boolean = false;
+  /** Parts of a live-steered answer; each part after the first starts where a dial moved. */
+  @Input() segments: Array<{ text: string; label?: string }> = [];
+  @Input() streaming: boolean = false;
+  @Input() notSaved: boolean = false;
 }
