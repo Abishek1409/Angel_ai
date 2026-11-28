@@ -191,33 +191,7 @@ def extract_text(file_path: str, filename: str, status_callback=None) -> str:
 
     elif ext == "pdf":
         try:
-            doc = fitz.open(file_path)
-            pages = [page.get_text() for page in doc]
-            page_count = len(doc)
-            doc.close()
-            text = "\n".join(pages)
-            if len(text.strip()) >= 20:
-                return text
-
-            logger.info("Falling back to OCR for %s", filename)
-            if status_callback:
-                status_callback()
-
-            from pdf2image import convert_from_path
-            import pytesseract
-
-            images = convert_from_path(
-                file_path,
-                first_page=1,
-                last_page=min(page_count, _OCR_MAX_PAGES),
-            )
-            ocr_text = "\n".join(pytesseract.image_to_string(image) for image in images)
-            if not ocr_text.strip():
-                raise RuntimeError(
-                    f"No readable text could be extracted from PDF '{filename}'. "
-                    "The file may be scanned or image-based."
-                )
-            return ocr_text
+            return _extract_pdf_text(file_path, filename, status_callback)
         except RuntimeError:
             raise
         except Exception as e:
@@ -227,6 +201,90 @@ def extract_text(file_path: str, filename: str, status_callback=None) -> str:
         raise ValueError(
             f"Unsupported file type '{ext}' for '{filename}'. Accepted formats: pdf, txt."
         )
+
+
+# --- OCR for scanned PDFs -------------------------------------------------
+# RapidOCR runs PaddleOCR's PP-OCR models on ONNX Runtime: pip-only (no system
+# binaries like tesseract/poppler, which the web host cannot install) and CPU-friendly.
+_OCR_DPI = 200
+_OCR_MAX_SIDE_PX = 2500          # cap very large pages to bound memory
+_MIN_PAGE_TEXT_CHARS = 20        # pages with less embedded text are treated as scanned
+_ocr_engine = None
+_ocr_lock = threading.Lock()     # one OCR at a time per process keeps memory predictable
+
+
+def _get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        from rapidocr import RapidOCR
+        _ocr_engine = RapidOCR()
+    return _ocr_engine
+
+
+def _render_page(page):
+    """Render a PDF page to an RGB numpy array with PyMuPDF."""
+    import numpy as np
+
+    zoom = _OCR_DPI / 72
+    longest = max(page.rect.width, page.rect.height) * zoom
+    if longest > _OCR_MAX_SIDE_PX:
+        zoom *= _OCR_MAX_SIDE_PX / longest
+    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=fitz.csRGB, alpha=False)
+    return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+
+
+def _rapidocr_image(image) -> str:
+    result = _get_ocr_engine()(image)
+    return "\n".join(result.txts or ())
+
+
+def _tesseract_image(image) -> str:
+    import shutil
+
+    if not shutil.which("tesseract"):
+        raise RuntimeError("tesseract is not installed")
+    import pytesseract
+    from PIL import Image
+
+    return pytesseract.image_to_string(Image.fromarray(image))
+
+
+def ocr_image(image) -> str:
+    """OCR one page image: RapidOCR first, Tesseract only as a fallback when installed."""
+    with _ocr_lock:
+        try:
+            return _rapidocr_image(image)
+        except Exception as e:
+            logger.warning("RapidOCR failed (%s); trying Tesseract", e)
+        try:
+            return _tesseract_image(image)
+        except Exception as e:
+            raise RuntimeError(f"OCR is unavailable: {e}") from e
+
+
+def _extract_pdf_text(file_path: str, filename: str, status_callback=None) -> str:
+    """Embedded text per page; pages without it (scans) go through OCR, up to _OCR_MAX_PAGES."""
+    pages_text = []
+    ocr_pages = 0
+    with fitz.open(file_path) as doc:
+        for page in doc:
+            text = page.get_text()
+            if len(text.strip()) < _MIN_PAGE_TEXT_CHARS and ocr_pages < _OCR_MAX_PAGES:
+                if ocr_pages == 0:
+                    logger.info("Running OCR on scanned pages of %s", filename)
+                    if status_callback:
+                        status_callback()
+                ocr_pages += 1
+                text = ocr_image(_render_page(page))
+            pages_text.append(text)
+
+    full_text = "\n".join(pages_text)
+    if len(full_text.strip()) < _MIN_PAGE_TEXT_CHARS:
+        raise RuntimeError(
+            f"No readable text could be extracted from PDF '{filename}'. "
+            "The scan may be blank, too blurry, or handwritten."
+        )
+    return full_text
 
 
 # 1 token ≈ 4 characters

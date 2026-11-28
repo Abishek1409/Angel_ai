@@ -158,24 +158,69 @@ class ExtractTextTests(TestCase):
         with self.assertRaises(RuntimeError):
             extract_text("/nonexistent/path/file.txt", "file.txt")
 
-    def test_scanned_pdf_falls_back_to_ocr(self):
-        mock_convert = Mock(return_value=[object()])
-        mock_ocr = Mock(return_value="Scanned document text")
+    def _pdf(self, *page_texts):
+        """PDF with one page per entry; an empty string makes an image-only (scanned-like) page."""
         fd, path = tempfile.mkstemp(suffix=".pdf")
         os.close(fd)
         pdf = fitz.open()
-        pdf.new_page()
+        for text in page_texts:
+            page = pdf.new_page()
+            if text:
+                page.insert_text((60, 90), text, fontsize=14)
         pdf.save(path)
         pdf.close()
+        self.addCleanup(os.unlink, path)
+        return path
+
+    def test_scanned_pdf_falls_back_to_ocr(self):
+        path = self._pdf("")
+        status_callback = Mock()
+        with patch("documents.services._rapidocr_image", return_value="Scanned document text") as mock_ocr:
+            result = extract_text(path, "scanned.pdf", status_callback=status_callback)
+        self.assertEqual(result, "Scanned document text")
+        mock_ocr.assert_called_once()
+        status_callback.assert_called_once()
+
+    def test_only_pages_without_text_are_ocred(self):
+        path = self._pdf("This page already has a real text layer.", "")
+        with patch("documents.services._rapidocr_image", return_value="Scanned second page") as mock_ocr:
+            result = extract_text(path, "mixed.pdf")
+        mock_ocr.assert_called_once()
+        self.assertIn("real text layer", result)
+        self.assertIn("Scanned second page", result)
+
+    def test_tesseract_used_when_rapidocr_fails(self):
+        path = self._pdf("")
+        with patch("documents.services._rapidocr_image", side_effect=RuntimeError("model error")),              patch("documents.services._tesseract_image", return_value="Text read by Tesseract OCR") as mock_tess:
+            result = extract_text(path, "scanned.pdf")
+        self.assertEqual(result, "Text read by Tesseract OCR")
+        mock_tess.assert_called_once()
+
+    def test_blank_scan_raises_runtime_error(self):
+        path = self._pdf("")
+        with patch("documents.services._rapidocr_image", return_value=""):
+            with self.assertRaises(RuntimeError):
+                extract_text(path, "blank.pdf")
+
+    def test_rapidocr_reads_real_scanned_page(self):
         try:
-            fake_modules = {
-                "pdf2image": SimpleNamespace(convert_from_path=mock_convert),
-                "pytesseract": SimpleNamespace(image_to_string=mock_ocr),
-            }
-            with patch.dict(sys.modules, fake_modules):
-                result = extract_text(path, "scanned.pdf")
-            self.assertEqual(result, "Scanned document text")
-            mock_convert.assert_called_once()
-            mock_ocr.assert_called_once()
-        finally:
-            os.unlink(path)
+            import rapidocr  # noqa: F401
+        except ImportError:
+            self.skipTest("rapidocr not installed")
+        # Rasterise a text page into an image-only PDF, as a scanner would produce
+        source = fitz.open()
+        page = source.new_page()
+        page.insert_text((60, 90), "Photosynthesis converts light energy", fontsize=18)
+        png = page.get_pixmap(dpi=150).tobytes("png")
+        fd, path = tempfile.mkstemp(suffix=".pdf")
+        os.close(fd)
+        self.addCleanup(os.unlink, path)
+        scan = fitz.open()
+        scan.new_page(width=page.rect.width, height=page.rect.height).insert_image(page.rect, stream=png)
+        scan.save(path)
+        scan.close()
+
+        result = extract_text(path, "scan.pdf")
+
+        self.assertIn("photosynthesis", result.lower())
+        self.assertIn("light energy", result.lower())
