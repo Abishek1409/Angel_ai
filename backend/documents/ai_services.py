@@ -148,6 +148,12 @@ def _get_document_text_from_chromadb(document_id: str) -> str:
     Raises:
         RuntimeError: If document not found or ChromaDB access fails.
     """
+    from .services import get_document_text
+
+    stored_text = get_document_text(document_id)
+    if stored_text:
+        return stored_text
+
     try:
         chroma_client = get_chroma_client()
 

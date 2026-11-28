@@ -1,5 +1,5 @@
 <section class="side-section" aria-label="Documents">
-  <h3 class="side-section__title">Documents</h3>
+  <h3 class="side-section__title" [title]="'Uploaded files are kept for ' + retentionHours / 24 + ' days, then deleted automatically'">Documents</h3>
 
   @if (isLoading) {
     <p class="side-section__note">Loading…</p>
@@ -23,7 +23,10 @@
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
-        <span class="side-row__label" [title]="doc.filename">{{ doc.filename }}</span>
+        <span class="side-row__label" [title]="expiryTitle(doc)">{{ doc.filename }}</span>
+        @if (doc.status === 'ready' && timeLeft(doc)) {
+          <span class="side-row__expiry">{{ timeLeft(doc) }}</span>
+        }
         @if (doc.status !== 'ready') {
           <span class="side-row__badge" [class]="getStatusClass(doc.status)" [title]="doc.error_message || ''">{{ getStatusLabel(doc.status) }}</span>
         }

@@ -135,7 +135,12 @@ def _generate_llm_response(prompt: str) -> str:
     )
 
 
-def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> tuple[list[str], list[dict], list[str], bool]:
+def retrieve_chunks(
+    question: str,
+    document_id: str = None,
+    top_k: int = 5,
+    document_ids: list[str] | None = None,
+) -> tuple[list[str], list[dict], list[str], bool]:
     """
     Embed the question and retrieve the top-k most similar chunks from ChromaDB.
 
@@ -143,15 +148,26 @@ def retrieve_chunks(question: str, document_id: str = None, top_k: int = 5) -> t
         question: The user's natural language question.
         document_id: Optional UUID string to scope search to specific document.
         top_k: Number of chunks to retrieve.
+        document_ids: When no document_id is given, limit the search to these
+            documents (the user's own). None searches every document.
 
     Returns:
         Tuple of (chunk_texts, chunk_metadata_list, chunk_ids, cache_hit).
         Returns empty lists and False if no results.
     """
+    if document_id:
+        where_filter = {"doc_id": {"$eq": str(document_id)}}
+    elif document_ids is not None:
+        if not document_ids:
+            return [], [], [], False
+        ids_list = [str(i) for i in document_ids]
+        where_filter = {"doc_id": {"$eq": ids_list[0]}} if len(ids_list) == 1 else {"doc_id": {"$in": ids_list}}
+    else:
+        where_filter = None
+
     chroma_client = _get_chroma_client()
     chunks, metadatas, ids = [], [], []
     embedding_cache_hit = False
-    where_filter = {"doc_id": {"$eq": document_id}} if document_id else None
 
     # Each collection must be queried with embeddings from the model that built it
     for name in (GEMINI_COLLECTION, LOCAL_COLLECTION):

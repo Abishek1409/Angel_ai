@@ -29,7 +29,7 @@ def create_flashcards(request, document_id):
     try:
         # Get document (verify ownership)
         try:
-            document = Document.objects.get(id=document_id, user=request.user)
+            document = Document.objects.active().get(id=document_id, user=request.user)
         except Document.DoesNotExist:
             return JsonResponse({"error": "Document not found or access denied."}, status=404)
         
@@ -103,7 +103,7 @@ def get_flashcards(request, document_id):
     try:
         # Get document (verify ownership)
         try:
-            document = Document.objects.get(id=document_id, user=request.user)
+            document = Document.objects.active().get(id=document_id, user=request.user)
         except Document.DoesNotExist:
             return JsonResponse({"error": "Document not found or access denied."}, status=404)
         
@@ -141,7 +141,7 @@ def delete_flashcards(request, document_id):
     Delete cached flashcards (allows regeneration).
     """
     try:
-        document = Document.objects.get(id=document_id, user=request.user)
+        document = Document.objects.active().get(id=document_id, user=request.user)
         deleted_count, _ = Flashcard.objects.filter(document=document).delete()
         return JsonResponse({"message": f"Deleted {deleted_count} flashcards"})
     except Document.DoesNotExist:
@@ -161,7 +161,7 @@ def create_roadmap(request, document_id):
     try:
         # Get document (verify ownership)
         try:
-            document = Document.objects.get(id=document_id, user=request.user)
+            document = Document.objects.active().get(id=document_id, user=request.user)
         except Document.DoesNotExist:
             return JsonResponse({"error": "Document not found or access denied."}, status=404)
         
@@ -229,7 +229,7 @@ def get_roadmap(request, document_id):
     try:
         # Get document (verify ownership)
         try:
-            document = Document.objects.get(id=document_id, user=request.user)
+            document = Document.objects.active().get(id=document_id, user=request.user)
         except Document.DoesNotExist:
             return JsonResponse({"error": "Document not found or access denied."}, status=404)
         
@@ -262,7 +262,7 @@ def delete_roadmap(request, document_id):
     Delete cached roadmap (allows regeneration).
     """
     try:
-        document = Document.objects.get(id=document_id, user=request.user)
+        document = Document.objects.active().get(id=document_id, user=request.user)
         roadmap = Roadmap.objects.get(document=document)
         roadmap.delete()
         return JsonResponse({"message": "Roadmap deleted successfully"})

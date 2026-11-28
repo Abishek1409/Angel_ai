@@ -1,5 +1,4 @@
 import json
-import os
 import uuid
 from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -8,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 from documents.models import Document
-from documents.services import delete_document_from_chromadb
+from documents.services import delete_document_completely, ensure_documents_indexed, purge_expired_documents
 from .models import ChatMessage, ChatSession
 from .services import retrieve_chunks, generate_answer
 from .steering import build_steered_prompt, normalize_steering, repair_mojibake, stream_llm
@@ -24,6 +23,18 @@ def _message_list(session):
 class ChatRequestError(Exception):
     def __init__(self, response):
         self.response = response
+
+
+def _user_ready_documents(user):
+    return Document.objects.active().filter(user=user, status="ready")
+
+
+def _retrieve_for_user(request, question, document_id):
+    """Search one document, or only the signed-in user's documents for a general chat."""
+    if document_id:
+        return retrieve_chunks(question, document_id=document_id)
+    own_ids = [str(i) for i in _user_ready_documents(request.user).values_list("id", flat=True)]
+    return retrieve_chunks(question, document_ids=own_ids)
 
 
 def _prepare_chat(request, body):
@@ -42,10 +53,11 @@ def _prepare_chat(request, body):
             status=400,
         ))
 
+    purge_expired_documents()
     doc = None
     if document_id:
         try:
-            doc = Document.objects.get(id=document_id, user=request.user)
+            doc = Document.objects.active().get(id=document_id, user=request.user)
         except Document.DoesNotExist:
             raise ChatRequestError(JsonResponse({"error": f"Document {document_id} not found in database."}, status=404))
         except Exception as e:
@@ -53,6 +65,12 @@ def _prepare_chat(request, body):
 
         if doc.status != "ready":
             raise ChatRequestError(JsonResponse({"error": f"Document status is '{doc.status}'. Error: {doc.error_message}"}, status=404))
+
+    # The host's disk is wiped on restart; rebuild the vector index from the database if needed
+    if doc is not None:
+        ensure_documents_indexed([doc])
+    else:
+        ensure_documents_indexed(_user_ready_documents(request.user))
 
     try:
         session_uuid = uuid.UUID(str(session_id))
@@ -103,7 +121,7 @@ def query(request):
         return e.response
 
     try:
-        chunks, metadatas, chunk_ids, embedding_cached = retrieve_chunks(question, document_id=document_id)
+        chunks, metadatas, chunk_ids, embedding_cached = _retrieve_for_user(request, question, document_id)
         answer, sources, citations, response_cached = generate_answer(
             question,
             chunks,
@@ -163,7 +181,7 @@ def stream_query(request):
     steering = normalize_steering(body.get("steering"))
 
     try:
-        chunks, metadatas, _chunk_ids, _cached = retrieve_chunks(question, document_id=document_id)
+        chunks, metadatas, _chunk_ids, _cached = _retrieve_for_user(request, question, document_id)
     except RuntimeError as e:
         return JsonResponse({"error": str(e)}, status=502)
 
@@ -244,7 +262,7 @@ def list_sessions(request):
 @permission_classes([IsAuthenticated])
 def document_session(request, document_id):
     try:
-        document = Document.objects.get(id=document_id, user=request.user)
+        document = Document.objects.active().get(id=document_id, user=request.user)
     except Document.DoesNotExist:
         return JsonResponse({"error": "Document not found or access denied."}, status=404)
 
@@ -291,13 +309,7 @@ def delete_session(request, session_id):
 
     document = session.document
     if document is not None:
-        try:
-            delete_document_from_chromadb(str(document.id))
-            if document.file_path and os.path.exists(document.file_path):
-                os.remove(document.file_path)
-        except Exception:
-            pass
-        document.delete()
+        delete_document_completely(document)
 
     session.delete()
     return JsonResponse({"message": "Session deleted."})

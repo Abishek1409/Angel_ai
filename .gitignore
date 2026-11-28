@@ -33,3 +33,6 @@ Thumbs.db
 
 # Kiro
 .kiro/
+
+# Vector index is rebuilt from the database; never commit it
+backend/chroma_db/

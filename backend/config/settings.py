@@ -58,6 +58,9 @@ STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# How long uploaded documents are kept before they are deleted automatically
+DOCUMENT_RETENTION_HOURS = int(os.environ.get("DOCUMENT_RETENTION_HOURS", "48"))
+
 # CORS — strip any trailing slashes from origins
 CORS_ALLOWED_ORIGINS = [
     o.rstrip("/")

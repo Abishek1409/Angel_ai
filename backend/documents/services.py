@@ -3,6 +3,7 @@ import threading
 import math
 import time
 import logging
+from array import array
 import fitz  # PyMuPDF
 import requests
 from django.conf import settings
@@ -275,22 +276,184 @@ def embed_and_store(document_id: str, chunks: list[str], filename: str, upload_d
     except Exception as e:
         raise RuntimeError(f"Failed to generate embeddings: {e}") from e
 
+    # Database copy first: it survives restarts, ChromaDB on local disk does not
+    save_chunks_to_db(document_id, chunks, embeddings, collection_name)
+
     try:
-        chroma = get_chroma_client()
-        collection = chroma.get_or_create_collection(name=collection_name)
-        collection.upsert(
-            ids=[f"{document_id}_chunk_{i}" for i in range(len(chunks))],
-            documents=chunks,
-            embeddings=embeddings,
-            metadatas=[{
-                "source": filename,
-                "doc_id": document_id,
-                "upload_date": upload_date,
-                "chunk_index": i,
-            } for i in range(len(chunks))],
-        )
+        _upsert_chroma(collection_name, document_id, chunks, embeddings, filename, upload_date)
+        _indexed_documents.add(document_id)
     except Exception as e:
         raise RuntimeError(f"Failed to store embeddings in ChromaDB: {e}") from e
+
+
+def _pack_embedding(vector: list[float]) -> bytes:
+    return array("f", vector).tobytes()
+
+
+def _unpack_embedding(data) -> list[float]:
+    values = array("f")
+    values.frombytes(bytes(data))
+    return values.tolist()
+
+
+def save_chunks_to_db(document_id: str, chunks: list[str], embeddings: list[list[float]], collection_name: str) -> None:
+    from .models import DocumentChunk
+
+    DocumentChunk.objects.filter(document_id=document_id).delete()
+    DocumentChunk.objects.bulk_create([
+        DocumentChunk(
+            document_id=document_id,
+            chunk_index=i,
+            text=chunk,
+            embedding=_pack_embedding(vector),
+            collection=collection_name,
+        )
+        for i, (chunk, vector) in enumerate(zip(chunks, embeddings))
+    ], batch_size=100)
+
+
+def _upsert_chroma(collection_name, document_id, chunks, embeddings, filename, upload_date, indexes=None):
+    indexes = list(indexes) if indexes is not None else list(range(len(chunks)))
+    collection = get_chroma_client().get_or_create_collection(name=collection_name)
+    collection.upsert(
+        ids=[f"{document_id}_chunk_{i}" for i in indexes],
+        documents=chunks,
+        embeddings=embeddings,
+        metadatas=[{
+            "source": filename,
+            "doc_id": document_id,
+            "upload_date": upload_date,
+            "chunk_index": i,
+        } for i in indexes],
+    )
+
+
+# Documents this process has confirmed are in ChromaDB (reset when the process restarts)
+_indexed_documents: set[str] = set()
+_index_lock = threading.Lock()
+
+
+def _chroma_has_document(document_id: str) -> bool:
+    chroma = get_chroma_client()
+    for name in DOCUMENT_COLLECTIONS:
+        try:
+            collection = chroma.get_collection(name=name)
+        except Exception:
+            continue
+        if collection.get(where={"doc_id": {"$eq": document_id}}, limit=1, include=[])["ids"]:
+            return True
+    return False
+
+
+def _backfill_db_from_chroma(document_id: str) -> None:
+    """Copy a document stored before chunks were kept in the database."""
+    chroma = get_chroma_client()
+    for name in DOCUMENT_COLLECTIONS:
+        try:
+            collection = chroma.get_collection(name=name)
+        except Exception:
+            continue
+        results = collection.get(
+            where={"doc_id": {"$eq": document_id}},
+            include=["documents", "metadatas", "embeddings"],
+        )
+        if not results["ids"]:
+            continue
+        rows = sorted(
+            zip(results["metadatas"], results["documents"], results["embeddings"]),
+            key=lambda row: row[0].get("chunk_index", 0),
+        )
+        save_chunks_to_db(document_id, [r[1] for r in rows], [list(r[2]) for r in rows], name)
+        return
+
+
+def ensure_documents_indexed(documents) -> None:
+    """
+    Make sure each ready document's chunks are in ChromaDB, rebuilding them from
+    the database after the host's disk was wiped. Cheap after the first call per process.
+    """
+    from .models import DocumentChunk
+
+    for doc in documents:
+        doc_id = str(doc.id)
+        if doc.status != "ready" or doc_id in _indexed_documents:
+            continue
+        with _index_lock:
+            if doc_id in _indexed_documents:
+                continue
+            try:
+                stored = list(DocumentChunk.objects.filter(document_id=doc_id).order_by("chunk_index"))
+                if _chroma_has_document(doc_id):
+                    if not stored:
+                        _backfill_db_from_chroma(doc_id)
+                elif stored:
+                    logger.info("Restoring %s chunks for document %s into ChromaDB", len(stored), doc_id)
+                    by_collection: dict[str, list] = {}
+                    for chunk in stored:
+                        by_collection.setdefault(chunk.collection, []).append(chunk)
+                    for name, rows in by_collection.items():
+                        _upsert_chroma(
+                            name,
+                            doc_id,
+                            [r.text for r in rows],
+                            [_unpack_embedding(r.embedding) for r in rows],
+                            doc.filename,
+                            doc.created_at.isoformat(),
+                            indexes=[r.chunk_index for r in rows],
+                        )
+                else:
+                    logger.warning("Document %s has no stored chunks to restore", doc_id)
+                    continue
+                _indexed_documents.add(doc_id)
+            except Exception:
+                logger.exception("Could not restore document %s into ChromaDB", doc_id)
+
+
+def get_document_text(document_id: str) -> str:
+    """Full document text from the database copy; empty string if none is stored."""
+    from .models import DocumentChunk
+
+    texts = DocumentChunk.objects.filter(document_id=document_id).order_by("chunk_index").values_list("text", flat=True)
+    return "\n\n".join(texts)
+
+
+def delete_document_completely(doc) -> None:
+    """Remove a document's vectors, file on disk and database rows (chunks, sessions, flashcards cascade)."""
+    doc_id = str(doc.id)
+    try:
+        delete_document_from_chromadb(doc_id)
+    except Exception:
+        logger.exception("Failed to remove document %s from ChromaDB", doc_id)
+    if doc.file_path and os.path.exists(doc.file_path):
+        try:
+            os.remove(doc.file_path)
+        except OSError:
+            logger.warning("Could not remove file %s", doc.file_path)
+    _indexed_documents.discard(doc_id)
+    doc.delete()
+
+
+_PURGE_INTERVAL_SECONDS = 10 * 60
+_last_purge = 0.0
+
+
+def purge_expired_documents(force: bool = False) -> int:
+    """Delete documents past their retention window. Runs at most every 10 minutes unless forced."""
+    global _last_purge
+    from .models import Document
+
+    now = time.monotonic()
+    if not force and now - _last_purge < _PURGE_INTERVAL_SECONDS:
+        return 0
+    _last_purge = now
+
+    count = 0
+    for doc in Document.objects.expired():
+        delete_document_completely(doc)
+        count += 1
+    if count:
+        logger.info("Purged %s expired documents", count)
+    return count
 
 
 def process_document(document_id: str) -> None:

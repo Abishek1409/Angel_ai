@@ -224,7 +224,7 @@ class GenerateAnswerTests(TestCase):
 
     @patch("chat.services.cache_response")
     @patch("chat.services.get_cached_response", return_value=None)
-    @patch("chat.services._generate_gemini_answer", return_value="Based on the context, **AGALYA R** appears to be more suitable. *However*, the evidence is limited.\n\n\n")
+    @patch("chat.services._generate_llm_response", return_value="Based on the context, **AGALYA R** appears to be more suitable. *However*, the evidence is limited.\n\n\n")
     def test_chunks_provided_clean_up_markdown_noise(self, mock_generate, mock_get_cached, mock_cache):
         answer, sources, citations, cache_hit = generate_answer(
             "What is X?",
@@ -242,7 +242,7 @@ class GenerateAnswerTests(TestCase):
 
     @patch("chat.services.cache_response")
     @patch("chat.services.get_cached_response", return_value=None)
-    @patch("chat.services._generate_gemini_answer", return_value="Generated answer.")
+    @patch("chat.services._generate_llm_response", return_value="Generated answer.")
     def test_chunks_provided_calls_gemini_and_returns_text(self, mock_generate, mock_get_cached, mock_cache):
 
         answer, sources, citations, cache_hit = generate_answer(

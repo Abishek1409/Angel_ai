@@ -122,8 +122,8 @@ class AuthenticatedHistoryTests(APITestCase):
         )
         session = ChatSession.objects.create(user=self.user, document=doc, title="Delete me")
 
-        with patch("chat.views.delete_document_from_chromadb") as delete_from_chroma, \
-             patch("chat.views.os.path.exists", return_value=False):
+        with patch("documents.services.delete_document_from_chromadb") as delete_from_chroma, \
+             patch("documents.services.os.path.exists", return_value=False):
             response = self.client.delete(f"/api/sessions/{session.id}/")
 
         self.assertEqual(response.status_code, 200)
