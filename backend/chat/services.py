@@ -180,6 +180,10 @@ def retrieve_chunks(
             collection_size = collection.count()
             if collection_size == 0:
                 continue
+            # Skip collections that hold none of the documents searched, so the
+            # question isn't embedded with a model that isn't needed
+            if where_filter and not collection.get(where=where_filter, limit=1, include=[])["ids"]:
+                continue
 
             if name == GEMINI_COLLECTION:
                 # Cache only holds Gemini query embeddings

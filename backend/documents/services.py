@@ -96,7 +96,44 @@ GEMINI_COLLECTION = "all_documents"
 LOCAL_COLLECTION = "all_documents_local"
 DOCUMENT_COLLECTIONS = (GEMINI_COLLECTION, LOCAL_COLLECTION)
 
-_local_embedder = None
+# --- Heavy work in child processes -----------------------------------------
+# OCR and the offline embedding model each need 100-250 MB. They run in
+# short-lived child processes that exit when done, so the web worker's memory
+# stays flat, and one lock makes sure only one child runs at a time.
+_DOCUMENTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_heavy_job_lock = threading.Lock()
+
+
+def _run_child(script: str, args: list[str], label: str, marker: str, stdin_data: str | None = None,
+               timeout: int = 15 * 60):
+    """Run documents/<script> in a child process and return the JSON after its result marker."""
+    import json
+    import subprocess
+    import sys
+
+    with _heavy_job_lock:
+        try:
+            completed = subprocess.run(
+                [sys.executable, os.path.join(_DOCUMENTS_DIR, script), *args],
+                input=stdin_data,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(f"{label} took too long and was stopped.") from e
+    if completed.returncode != 0:
+        if completed.returncode < 0 or completed.returncode == 137:
+            raise RuntimeError(f"{label} ran out of memory on this document.")
+        reason = (completed.stderr or "").strip().splitlines()
+        raise RuntimeError(f"{label} is unavailable: {reason[-1] if reason else 'unknown error'}")
+    lines = [line for line in (completed.stdout or "").splitlines() if line.startswith(marker)]
+    if not lines:
+        raise RuntimeError(f"{label} returned no result.")
+    return json.loads(lines[-1][len(marker):])
+
+
 
 _HF_EMBED_URL = (
     "https://router.huggingface.co/hf-inference/models/"
@@ -131,12 +168,14 @@ def _hf_embed(texts: list[str]) -> list[list[float]]:
 
 
 def _onnx_embed(texts: list[str]) -> list[list[float]]:
-    """Free, keyless last resort: all-MiniLM-L6-v2 via ONNX, bundled with chromadb."""
-    global _local_embedder
-    if _local_embedder is None:
-        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-        _local_embedder = DefaultEmbeddingFunction()
-    return [list(map(float, v)) for v in _local_embedder(texts)]
+    """Free, keyless last resort: all-MiniLM-L6-v2 via ONNX, run in a child process (embed_worker.py)."""
+    import json
+
+    vectors = _run_child("embed_worker.py", [], "Offline embedding", "__EMBED_RESULT__",
+                         stdin_data=json.dumps(texts), timeout=10 * 60)
+    if len(vectors) != len(texts):
+        raise RuntimeError("Offline embedding returned an unexpected number of vectors")
+    return vectors
 
 
 def _local_embed(texts: list[str]) -> list[list[float]]:
@@ -206,41 +245,12 @@ def extract_text(file_path: str, filename: str, status_callback=None) -> str:
 # --- OCR for scanned PDFs -------------------------------------------------
 # RapidOCR runs PaddleOCR's PP-OCR models on ONNX Runtime: pip-only (no system
 # binaries like tesseract/poppler, which the web host cannot install) and CPU-friendly.
-# It runs in a separate short-lived process (ocr_worker.py) so the model's memory
-# is freed after every document instead of staying inside the web worker.
+# It runs in a child process (ocr_worker.py) via _run_child, see above.
 _MIN_PAGE_TEXT_CHARS = 20        # pages with less embedded text are treated as scanned
-_OCR_TIMEOUT_SECONDS = 15 * 60
-_OCR_WORKER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ocr_worker.py")
-_ocr_lock = threading.Lock()     # one OCR process at a time per web worker bounds memory
-
-
 def _ocr_pages(file_path: str, page_indexes: list[int]) -> dict[int, str]:
-    """OCR the given PDF pages in a child process; returns {page_index: text}."""
-    import json
-    import subprocess
-    import sys
-
-    with _ocr_lock:
-        try:
-            completed = subprocess.run(
-                [sys.executable, _OCR_WORKER, file_path, *map(str, page_indexes)],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                timeout=_OCR_TIMEOUT_SECONDS,
-            )
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError("OCR took too long and was stopped.") from e
-    if completed.returncode != 0:
-        reason = (completed.stderr or "").strip().splitlines()
-        if completed.returncode < 0 or completed.returncode == 137:
-            raise RuntimeError("OCR ran out of memory on this document.")
-        raise RuntimeError(f"OCR is unavailable: {reason[-1] if reason else 'unknown error'}")
-    marker = "__OCR_RESULT__"
-    lines = [line for line in (completed.stdout or "").splitlines() if line.startswith(marker)]
-    if not lines:
-        raise RuntimeError("OCR returned no result.")
-    return {int(k): v for k, v in json.loads(lines[-1][len(marker):]).items()}
+    """OCR the given PDF pages in a child process (ocr_worker.py); returns {page_index: text}."""
+    result = _run_child("ocr_worker.py", [file_path, *map(str, page_indexes)], "OCR", "__OCR_RESULT__")
+    return {int(k): v for k, v in result.items()}
 
 
 def _extract_pdf_text(file_path: str, filename: str, status_callback=None) -> str:
