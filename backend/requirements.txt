@@ -21,8 +21,13 @@ chromadb==1.5.9
 
 # Document processing
 pymupdf>=1.25.0
+# OCR for scanned PDFs: PaddleOCR PP-OCR models on ONNX Runtime (no system packages needed)
+rapidocr>=3.4,<4
+onnxruntime>=1.17
+# rapidocr pulls OpenCV; 4.12+ needs numpy 2, which conflicts with the numpy pin above
+opencv-python-headless<4.12
+# Optional fallback, used only if a tesseract binary is installed on the host
 pytesseract>=0.3.13
-pdf2image>=1.17.0
 
 # Caching
 redis==5.0.1
