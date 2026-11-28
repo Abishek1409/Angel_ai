@@ -147,3 +147,59 @@ class GeneralChatScopeTests(TestCase):
         with patch("chat.services._get_chroma_client") as mock_client:
             self.assertEqual(retrieve_chunks("q", document_ids=[]), ([], [], [], False))
             mock_client.assert_not_called()
+
+
+class ChildProcessMemoryTests(TestCase):
+    """Heavy models run in child processes so the web worker's memory stays flat."""
+
+    def test_offline_embedding_runs_in_child_process(self):
+        with patch.object(services, "_run_child", return_value=[[0.1, 0.2], [0.3, 0.4]]) as mock_child:
+            vectors = services._onnx_embed(["a", "b"])
+        self.assertEqual(vectors, [[0.1, 0.2], [0.3, 0.4]])
+        self.assertEqual(mock_child.call_args.args[0], "embed_worker.py")
+
+    def test_offline_embedding_rejects_wrong_vector_count(self):
+        with patch.object(services, "_run_child", return_value=[[0.1]]):
+            with self.assertRaises(RuntimeError):
+                services._onnx_embed(["a", "b"])
+
+    def test_embed_worker_returns_vectors(self):
+        import os
+        import subprocess
+        import sys
+
+        model_dir = os.path.join(os.path.expanduser("~"), ".cache", "chroma", "onnx_models", "all-MiniLM-L6-v2")
+        if not os.path.isdir(model_dir):
+            self.skipTest("offline embedding model not downloaded on this machine")
+        worker = os.path.join(os.path.dirname(services.__file__), "embed_worker.py")
+        out = subprocess.run([sys.executable, worker], input='["hello world", "cells"]',
+                             capture_output=True, text=True, encoding="utf-8", timeout=300).stdout
+        line = [l for l in out.splitlines() if l.startswith("__EMBED_RESULT__")][-1]
+        import json
+        vectors = json.loads(line[len("__EMBED_RESULT__"):])
+        self.assertEqual(len(vectors), 2)
+        self.assertEqual(len(vectors[0]), 384)
+
+
+class RetrievalSkipsUnusedCollectionsTests(TestCase):
+    def test_collection_without_the_document_is_not_queried(self):
+        from unittest.mock import MagicMock
+        from chat import services as chat_services
+
+        gemini, local = MagicMock(), MagicMock()
+        gemini.count.return_value = 5
+        gemini.get.return_value = {"ids": ["doc_chunk_0"]}
+        gemini.query.return_value = {"documents": [["text"]], "metadatas": [[{"source": "a.pdf"}]], "ids": [["doc_chunk_0"]]}
+        local.count.return_value = 5
+        local.get.return_value = {"ids": []}  # this document isn't in the local collection
+        client = MagicMock()
+        client.get_collection.side_effect = lambda name: gemini if name == chat_services.GEMINI_COLLECTION else local
+
+        with patch.object(chat_services, "_get_chroma_client", return_value=client), \
+             patch.object(chat_services, "get_cached_embedding", return_value=[0.1, 0.2]), \
+             patch.object(chat_services, "_local_embed") as local_embed:
+            chunks, _, _, _ = chat_services.retrieve_chunks("q", document_id="doc")
+
+        self.assertEqual(chunks, ["text"])
+        local_embed.assert_not_called()
+        local.query.assert_not_called()

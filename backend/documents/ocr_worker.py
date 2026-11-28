@@ -11,6 +11,7 @@ document is done. This keeps the web service under small memory limits.
 It deliberately imports nothing from Django.
 """
 import json
+import os
 import shutil
 import sys
 
@@ -19,20 +20,46 @@ import numpy as np
 
 RESULT_MARKER = "__OCR_RESULT__"
 OCR_DPI = 200
-MAX_SIDE_PX = 2000  # cap very large pages to bound memory
+MAX_SIDE_PX = 1600  # cap very large pages to bound memory
 
-# Tuned for a 512 MB host: measured peak ~260 MB (vs ~520 MB with defaults)
-# on a dense full page, with no loss of accuracy on upright scans.
-ENGINE_PARAMS = {
+MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ocr_models")
+DET_MODEL = os.path.join(MODELS_DIR, "en_PP-OCRv3_det_mobile.onnx")
+REC_MODEL = os.path.join(MODELS_DIR, "en_PP-OCRv4_rec_mobile.onnx")
+
+# Tuned for a 512 MB host. Measured on Linux (python:3.11-slim) on a dense
+# full page: ~260 MB peak with these settings vs ~520 MB with rapidocr's
+# defaults, at the same accuracy on upright scans.
+BASE_PARAMS = {
     "Global.use_cls": False,          # skip the text-angle model; scans are upright
     "Det.limit_type": "max",          # downscale for detection instead of upscaling
     "Det.limit_side_len": 960,
-    "Rec.rec_batch_num": 1,           # recognise one line at a time: biggest memory saver
+    "Rec.rec_batch_num": 1,           # recognise one line at a time: big memory saver
     "EngineConfig.onnxruntime.intra_op_num_threads": 2,
     "EngineConfig.onnxruntime.inter_op_num_threads": 1,
 }
 
 _engine = None
+
+
+def engine_params() -> dict:
+    """Use the small English mobile models kept in the repo; fall back to rapidocr's bundled ones."""
+    params = dict(BASE_PARAMS)
+    if os.path.exists(DET_MODEL) and os.path.exists(REC_MODEL):
+        from rapidocr import LangDet, LangRec, ModelType, OCRVersion
+
+        params.update({
+            "Det.ocr_version": OCRVersion.PPOCRV4,
+            "Det.lang_type": LangDet.EN,
+            "Det.model_type": ModelType.MOBILE,
+            "Det.model_path": DET_MODEL,
+            "Rec.ocr_version": OCRVersion.PPOCRV4,
+            "Rec.lang_type": LangRec.EN,
+            "Rec.model_type": ModelType.MOBILE,
+            "Rec.model_path": REC_MODEL,
+        })
+    else:
+        print("Repo OCR models missing; using rapidocr's bundled models", file=sys.stderr)
+    return params
 
 
 def _render_page(page) -> np.ndarray:
@@ -49,7 +76,7 @@ def _rapidocr(image) -> str:
     if _engine is None:
         from rapidocr import RapidOCR
 
-        _engine = RapidOCR(params=ENGINE_PARAMS)
+        _engine = RapidOCR(params=engine_params())
     result = _engine(image)
     return "\n".join(result.txts or ())
 
