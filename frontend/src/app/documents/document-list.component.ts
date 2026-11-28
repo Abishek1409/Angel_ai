@@ -18,6 +18,7 @@ export class DocumentListComponent implements OnInit, OnChanges {
   @Output() uploadNew = new EventEmitter<void>();
 
   documents: Document[] = [];
+  retentionHours = 48;
   selectedDocId: string | null = null;
   isLoading: boolean = true;
   errorMessage: string = '';
@@ -39,6 +40,7 @@ export class DocumentListComponent implements OnInit, OnChanges {
     this.documentService.listDocuments().subscribe({
       next: (res) => {
         this.documents = res.documents;
+        this.retentionHours = res.retention_hours ?? this.retentionHours;
         this.isLoading = false;
       },
       error: () => {
@@ -86,6 +88,23 @@ export class DocumentListComponent implements OnInit, OnChanges {
       case 'error': return 'status-error';
       default: return '';
     }
+  }
+
+  /** Short "1d 5h left" label for when the server deletes the document. */
+  timeLeft(doc: Document): string {
+    if (!doc.expires_at) return '';
+    const ms = new Date(doc.expires_at).getTime() - Date.now();
+    if (ms <= 0) return 'expiring';
+    const hours = Math.floor(ms / 3_600_000);
+    if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h left`;
+    if (hours >= 1) return `${hours}h left`;
+    return `${Math.max(1, Math.floor(ms / 60_000))}m left`;
+  }
+
+  expiryTitle(doc: Document): string {
+    return doc.expires_at
+      ? `${doc.filename} — kept until ${new Date(doc.expires_at).toLocaleString()}`
+      : doc.filename;
   }
 
   getStatusLabel(status: string): string {

@@ -10,7 +10,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 from .models import Document
-from .services import process_document
+from .services import delete_document_completely, process_document, purge_expired_documents
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def upload_document(request):
+    purge_expired_documents()
     try:
         file = request.FILES.get("file")
         session_id = request.POST.get("session_id")
@@ -66,7 +67,12 @@ def upload_document(request):
         t.start()
 
         return JsonResponse(
-            {"document_id": str(doc.id), "filename": doc.filename, "status": doc.status},
+            {
+                "document_id": str(doc.id),
+                "filename": doc.filename,
+                "status": doc.status,
+                "expires_at": doc.expires_at.isoformat(),
+            },
             status=200,
         )
     except Exception as e:
@@ -78,7 +84,7 @@ def upload_document(request):
 @permission_classes([IsAuthenticated])
 def document_status(request, document_id):
     try:
-        doc = Document.objects.get(id=document_id, user=request.user)
+        doc = Document.objects.active().get(id=document_id, user=request.user)
     except (Document.DoesNotExist, Exception):
         return JsonResponse({"error": "Document not found."}, status=404)
 
@@ -88,12 +94,16 @@ def document_status(request, document_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_documents(request):
-    """List all documents owned by the authenticated user."""
-    documents = Document.objects.filter(user=request.user).values(
-        "id", "filename", "status", "created_at", "error_message"
+    """List the authenticated user's documents that are still within the retention window."""
+    purge_expired_documents()
+    documents = Document.objects.active().filter(user=request.user).values(
+        "id", "filename", "status", "created_at", "expires_at", "error_message"
     ).order_by("-created_at")
-    
-    return JsonResponse({"documents": list(documents)}, json_dumps_params={"default": str})
+
+    return JsonResponse(
+        {"documents": list(documents), "retention_hours": settings.DOCUMENT_RETENTION_HOURS},
+        json_dumps_params={"default": str},
+    )
 
 
 @api_view(["DELETE"])
@@ -108,17 +118,7 @@ def delete_document(request, document_id):
         return JsonResponse({"error": "Document not found."}, status=404)
     
     try:
-        # Delete from ChromaDB
-        from .services import delete_document_from_chromadb
-        delete_document_from_chromadb(str(document_id))
-        
-        # Delete file from disk
-        if os.path.exists(doc.file_path):
-            os.remove(doc.file_path)
-        
-        # Delete from database
-        doc.delete()
-        
+        delete_document_completely(doc)
         return JsonResponse({"message": "Document deleted successfully."})
     except Exception as e:
         logger.error(f"Delete error: {str(e)}", exc_info=True)

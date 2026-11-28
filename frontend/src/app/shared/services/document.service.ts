@@ -19,11 +19,14 @@ export interface Document {
   filename: string;
   status: string;
   created_at: string;
+  /** When the server deletes this document automatically. */
+  expires_at?: string;
   error_message?: string;
 }
 
 export interface ListResponse {
   documents: Document[];
+  retention_hours?: number;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -183,6 +183,13 @@ html.ink-transition::view-transition-new(root) {
   line-height: 1.6;
 }
 
+.side-row__expiry {
+  flex-shrink: 0;
+  color: var(--text-light);
+  font-size: .68rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-ready { color: var(--green); }
 .status-processing, .status-pending { color: var(--amber); }
 .status-error, .status-failed { color: var(--red); }
