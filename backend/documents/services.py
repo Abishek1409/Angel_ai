@@ -206,77 +206,56 @@ def extract_text(file_path: str, filename: str, status_callback=None) -> str:
 # --- OCR for scanned PDFs -------------------------------------------------
 # RapidOCR runs PaddleOCR's PP-OCR models on ONNX Runtime: pip-only (no system
 # binaries like tesseract/poppler, which the web host cannot install) and CPU-friendly.
-_OCR_DPI = 200
-_OCR_MAX_SIDE_PX = 2500          # cap very large pages to bound memory
+# It runs in a separate short-lived process (ocr_worker.py) so the model's memory
+# is freed after every document instead of staying inside the web worker.
 _MIN_PAGE_TEXT_CHARS = 20        # pages with less embedded text are treated as scanned
-_ocr_engine = None
-_ocr_lock = threading.Lock()     # one OCR at a time per process keeps memory predictable
+_OCR_TIMEOUT_SECONDS = 15 * 60
+_OCR_WORKER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ocr_worker.py")
+_ocr_lock = threading.Lock()     # one OCR process at a time per web worker bounds memory
 
 
-def _get_ocr_engine():
-    global _ocr_engine
-    if _ocr_engine is None:
-        from rapidocr import RapidOCR
-        _ocr_engine = RapidOCR()
-    return _ocr_engine
+def _ocr_pages(file_path: str, page_indexes: list[int]) -> dict[int, str]:
+    """OCR the given PDF pages in a child process; returns {page_index: text}."""
+    import json
+    import subprocess
+    import sys
 
-
-def _render_page(page):
-    """Render a PDF page to an RGB numpy array with PyMuPDF."""
-    import numpy as np
-
-    zoom = _OCR_DPI / 72
-    longest = max(page.rect.width, page.rect.height) * zoom
-    if longest > _OCR_MAX_SIDE_PX:
-        zoom *= _OCR_MAX_SIDE_PX / longest
-    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=fitz.csRGB, alpha=False)
-    return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
-
-
-def _rapidocr_image(image) -> str:
-    result = _get_ocr_engine()(image)
-    return "\n".join(result.txts or ())
-
-
-def _tesseract_image(image) -> str:
-    import shutil
-
-    if not shutil.which("tesseract"):
-        raise RuntimeError("tesseract is not installed")
-    import pytesseract
-    from PIL import Image
-
-    return pytesseract.image_to_string(Image.fromarray(image))
-
-
-def ocr_image(image) -> str:
-    """OCR one page image: RapidOCR first, Tesseract only as a fallback when installed."""
     with _ocr_lock:
         try:
-            return _rapidocr_image(image)
-        except Exception as e:
-            logger.warning("RapidOCR failed (%s); trying Tesseract", e)
-        try:
-            return _tesseract_image(image)
-        except Exception as e:
-            raise RuntimeError(f"OCR is unavailable: {e}") from e
+            completed = subprocess.run(
+                [sys.executable, _OCR_WORKER, file_path, *map(str, page_indexes)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=_OCR_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError("OCR took too long and was stopped.") from e
+    if completed.returncode != 0:
+        reason = (completed.stderr or "").strip().splitlines()
+        if completed.returncode < 0 or completed.returncode == 137:
+            raise RuntimeError("OCR ran out of memory on this document.")
+        raise RuntimeError(f"OCR is unavailable: {reason[-1] if reason else 'unknown error'}")
+    marker = "__OCR_RESULT__"
+    lines = [line for line in (completed.stdout or "").splitlines() if line.startswith(marker)]
+    if not lines:
+        raise RuntimeError("OCR returned no result.")
+    return {int(k): v for k, v in json.loads(lines[-1][len(marker):]).items()}
 
 
 def _extract_pdf_text(file_path: str, filename: str, status_callback=None) -> str:
     """Embedded text per page; pages without it (scans) go through OCR, up to _OCR_MAX_PAGES."""
-    pages_text = []
-    ocr_pages = 0
     with fitz.open(file_path) as doc:
-        for page in doc:
-            text = page.get_text()
-            if len(text.strip()) < _MIN_PAGE_TEXT_CHARS and ocr_pages < _OCR_MAX_PAGES:
-                if ocr_pages == 0:
-                    logger.info("Running OCR on scanned pages of %s", filename)
-                    if status_callback:
-                        status_callback()
-                ocr_pages += 1
-                text = ocr_image(_render_page(page))
-            pages_text.append(text)
+        pages_text = [page.get_text() for page in doc]
+
+    scanned = [i for i, text in enumerate(pages_text) if len(text.strip()) < _MIN_PAGE_TEXT_CHARS]
+    scanned = scanned[:_OCR_MAX_PAGES]
+    if scanned:
+        logger.info("Running OCR on %s scanned page(s) of %s", len(scanned), filename)
+        if status_callback:
+            status_callback()
+        for index, text in _ocr_pages(file_path, scanned).items():
+            pages_text[index] = text
 
     full_text = "\n".join(pages_text)
     if len(full_text.strip()) < _MIN_PAGE_TEXT_CHARS:

@@ -4,7 +4,7 @@ services:
     env: python
     healthCheckPath: /health/
     buildCommand: cd backend && pip install --no-cache-dir --upgrade -r requirements.txt && python manage.py migrate
-    startCommand: cd backend && python manage.py migrate --noinput && gunicorn --pythonpath . config.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --workers 2
+    startCommand: cd backend && python manage.py migrate --noinput && gunicorn --pythonpath . config.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --workers 1 --threads 4
     envVars:
       - key: PYTHON_VERSION
         value: 3.11

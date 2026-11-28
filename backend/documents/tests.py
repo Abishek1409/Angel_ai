@@ -175,32 +175,53 @@ class ExtractTextTests(TestCase):
     def test_scanned_pdf_falls_back_to_ocr(self):
         path = self._pdf("")
         status_callback = Mock()
-        with patch("documents.services._rapidocr_image", return_value="Scanned document text") as mock_ocr:
+        with patch("documents.services._ocr_pages", return_value={0: "Scanned document text"}) as mock_ocr:
             result = extract_text(path, "scanned.pdf", status_callback=status_callback)
         self.assertEqual(result, "Scanned document text")
-        mock_ocr.assert_called_once()
+        mock_ocr.assert_called_once_with(path, [0])
         status_callback.assert_called_once()
 
     def test_only_pages_without_text_are_ocred(self):
         path = self._pdf("This page already has a real text layer.", "")
-        with patch("documents.services._rapidocr_image", return_value="Scanned second page") as mock_ocr:
+        with patch("documents.services._ocr_pages", return_value={1: "Scanned second page"}) as mock_ocr:
             result = extract_text(path, "mixed.pdf")
-        mock_ocr.assert_called_once()
+        mock_ocr.assert_called_once_with(path, [1])
         self.assertIn("real text layer", result)
         self.assertIn("Scanned second page", result)
 
-    def test_tesseract_used_when_rapidocr_fails(self):
-        path = self._pdf("")
-        with patch("documents.services._rapidocr_image", side_effect=RuntimeError("model error")),              patch("documents.services._tesseract_image", return_value="Text read by Tesseract OCR") as mock_tess:
-            result = extract_text(path, "scanned.pdf")
-        self.assertEqual(result, "Text read by Tesseract OCR")
-        mock_tess.assert_called_once()
+    def test_text_pdf_never_starts_ocr(self):
+        path = self._pdf("A normal digital PDF with plenty of text.")
+        with patch("documents.services._ocr_pages") as mock_ocr:
+            extract_text(path, "digital.pdf")
+        mock_ocr.assert_not_called()
 
     def test_blank_scan_raises_runtime_error(self):
         path = self._pdf("")
-        with patch("documents.services._rapidocr_image", return_value=""):
+        with patch("documents.services._ocr_pages", return_value={0: ""}):
             with self.assertRaises(RuntimeError):
                 extract_text(path, "blank.pdf")
+
+    def test_ocr_worker_failure_becomes_runtime_error(self):
+        path = self._pdf("")
+        failed = SimpleNamespace(returncode=1, stdout="", stderr="OCR failed: model missing")
+        with patch("subprocess.run", return_value=failed):
+            with self.assertRaisesRegex(RuntimeError, "model missing"):
+                extract_text(path, "scanned.pdf")
+
+    def test_ocr_worker_killed_for_memory_reports_it(self):
+        path = self._pdf("")
+        killed = SimpleNamespace(returncode=-9, stdout="", stderr="")
+        with patch("subprocess.run", return_value=killed):
+            with self.assertRaisesRegex(RuntimeError, "out of memory"):
+                extract_text(path, "scanned.pdf")
+
+    def test_worker_uses_tesseract_when_rapidocr_fails(self):
+        from . import ocr_worker
+
+        path = self._pdf("")
+        with patch.object(ocr_worker, "_rapidocr", side_effect=RuntimeError("model error")),              patch.object(ocr_worker, "_tesseract", return_value="Text read by Tesseract OCR") as mock_tess,              fitz.open(path) as doc:
+            self.assertEqual(ocr_worker.ocr_page(doc[0]), "Text read by Tesseract OCR")
+        mock_tess.assert_called_once()
 
     def test_rapidocr_reads_real_scanned_page(self):
         try:
